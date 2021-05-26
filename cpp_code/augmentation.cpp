@@ -1292,7 +1292,56 @@ void connectGraph(Graph* graph){
 }
 
 
+vector<string> processInputString(string input){
+	vector<string> splitString;
+	// First check the format is right, i.e. starts and ends with {}
+	if(input.front() != '{' || input.back() != '}'){return splitString;}
+	// Now get subset
+	string inside = input.substr(1, (int)input.size() - 2);
+	stringstream ss(inside);
+	string token;
+	while(getline(ss, token, ' ')){
+		splitString.push_back(token);
+	}
+	return splitString;
+}
+
+
 int main(int argc, char** argv){
+
+
+	// Have section which takes input. Will not let this run without any inputs, so start with an error message
+	if(argc == 1){
+		printf("Error: This program needs to run with at least one input! The options are...\n");
+		return 0;
+	}
+	// At this point have at least one input, read it to know what's going on
+	string mode = argv[1];
+	if(mode.compare("setup") == 0){
+		if(argc != 9){
+			printf("Error: Called program with mode setup (i.e. create file with each of the required runs), which should look like ");
+			printf("./augmentation setup {sizeStart,sizeEnd,stepSize} {seedsStart,seedsEnd} {M,T} {l_1, ..., l_k} {s_1,...,s_n} xDim yDim\nStopping now...\n");
+			return 0;
+		}
+		vector<string> sizes = processInputString(argv[2]);
+		vector<string> seeds = processInputString(argv[3]);
+		vector<string> inputTypes = processInputString(argv[4]);
+		vector<string> disasterLengths = processInputString(argv[5]);
+		vector<string> searchStrategies = processInputString(argv[6]);
+		double xDim = stof(argv[7]);
+		double yDim = stof(argv[8]);
+
+		// Check all went well
+		if((int)sizes.size() != 3){printf("Received sizes information, expected {sizeStart,sizeEnd,stepSize}, but got %s! Stopping now...\n", argv[2]); return 0;}
+		if((int)seeds.size() != 2){printf("Received seeds information, expected {seedsStart,seedsEnd}, but got %s! Stopping now...\n", argv[3]); return 0;}
+		if((int)inputTypes.size() == 0){printf("Received inputType information, expected {M,T}, {M} or {T}, but got %s! Stopping now...\n", argv[4]); return 0;}
+		if((int)disasterLengths.size() == 0){printf("Received disaster length information, expected {l_1, ..., l_k}, but got %s! Stopping now...\n", argv[5]); return 0;}
+		if((int)searchStrategies.size() != 3){printf("Received search strategies information, expected {s_1,...,s_n}, but got %s! Stopping now...\n", argv[6]); return 0;}
+
+		// Now to extract info 
+	}
+
+
 	
 	double xDim, yDim, cutSize, maxEdgeLength;
 	int size, edges, seed;
@@ -1301,8 +1350,8 @@ int main(int argc, char** argv){
 	int seedStart, seedEnd;
 	clock_t t;
 	
-	// Redoing main, first make sure thinds are compiling
-	printf("I compiled and ran once!\n");
+	
+
 	return 0;
 
 
