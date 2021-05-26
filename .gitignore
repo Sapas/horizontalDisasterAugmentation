@@ -1,7 +1,11 @@
 *.DS_store
 # Ignore cmake as it is system specific
 cpp_code/CMakeCache.txt
+cpp_code/CMakeLists.txt.bak
 cpp_code/CMakeFiles/
 cpp_code/CMakeLists.txt
 cpp_code/Makefile
 cpp_code/cmake_install.cmake
+# Ignore executables
+cpp_code/augmentation
+
