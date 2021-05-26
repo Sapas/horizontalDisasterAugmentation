@@ -351,13 +351,13 @@ int read_graph(Graph* graph, string filename){
 		printf("Couldn't open file!\n");
         return 1;
     }
-    fgets(buffer, 1000, fp);
+    if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}
 	double x, y;
     int id, vertices, edges, p1, p2;
     sscanf(buffer, "V %d E %d\n\n",&vertices, &edges);
 
-    fgets(buffer, 1000, fp);
-    fgets(buffer, 1000, fp);
+    if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}
+    if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}
     Vertex* v;
     for(int i = 0; i < vertices; i++){
     	sscanf(buffer, "%d %lf %lf\n",&id, &x, &y);
@@ -366,15 +366,15 @@ int read_graph(Graph* graph, string filename){
 		v->x = x;
 		v->y = y;
 		graph->vertices.push_back(v);
-		fgets(buffer, 1000, fp);
+		if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}
     }
     Line* l;
-    fgets(buffer, 1000, fp);    
+    if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}   
     for(int i = 0; i < edges; i++){
     	sscanf(buffer, "%d %d\n",&p1, &p2);
     	l = new Line(i, graph->vertices[p1], graph->vertices[p2]);
     	graph->edges.push_back(l);
-    	fgets(buffer, 1000, fp); 
+    	if(fgets(buffer, 1000, fp) == NULL){printf("Could not read from buffer!\n");}
     }
 
     fclose(fp);

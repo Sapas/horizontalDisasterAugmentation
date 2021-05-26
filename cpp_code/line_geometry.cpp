@@ -120,8 +120,10 @@ void addSegment(Graph* graph, list<Vertex> &edge){
 
 int findVertexId(vector<Vertex*> &sortedVertices, Vertex* point){
     vector<Vertex*>::iterator iterator;
-    if(!std::binary_search(sortedVertices.begin(), sortedVertices.end(), point, compareVertices)){return -1;}
-    iterator = std::lower_bound (sortedVertices.begin(), sortedVertices.end(), point, compareVertices);
+    // if(!std::binary_search(sortedVertices.begin(), sortedVertices.end(), point, compareVertices)){return -1;}
+    // iterator = std::lower_bound (sortedVertices.begin(), sortedVertices.end(), point, compareVertices);
+    if(!binary_search(sortedVertices.begin(), sortedVertices.end(), point, compareVertices)){return -1;}
+    iterator = lower_bound (sortedVertices.begin(), sortedVertices.end(), point, compareVertices);
     if(iterator == sortedVertices.end()){return -1;}
     return (*iterator)->id;
 }

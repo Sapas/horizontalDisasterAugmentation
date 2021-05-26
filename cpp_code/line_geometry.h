@@ -14,6 +14,7 @@
 #include <cmath>
 #include <float.h>
 #include <cstdlib>
+#include <algorithm>
 using namespace std;
 
 #define TOLERANCE 0.000001
