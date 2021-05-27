@@ -1,0 +1,2 @@
+This folder holds .svg files of plotted augmented graphs, which will be plotted when specified in the run script.
+In iOS it is recommended to use gaplin to view these files

@@ -1,0 +1,5 @@
+This folder holds the run specifications of the augmentation algorithms.
+For a given job "jobName", there should be a file jobName-runScript.txt in
+the runScripts folder. Each line in this file should generate a file in the 
+folder runResults in the form jobName-arrayJobN.txt, where N is the line in the runScript 
+file which specified the settings of this particular run.
