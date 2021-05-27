@@ -8,4 +8,9 @@ cpp_code/Makefile
 cpp_code/cmake_install.cmake
 # Ignore executables
 cpp_code/augmentation
-
+# Ignore all data, except info files which will make sure folders are created
+data/
+!data/plots/AAinfo.txt
+!data/graphs/AAinfo.txt
+!data/runResults/AAinfo.txt
+!data/runScripts/AAinfo.txt
