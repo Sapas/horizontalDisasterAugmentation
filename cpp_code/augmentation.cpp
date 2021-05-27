@@ -62,15 +62,15 @@ bool isConnected(Graph* graph){
 		depthFirstSearch(graph, forbidden, visited, i, group);
 		group++;
 	}
-	if(group != 2){
-		for(int i = 0; i < visited.size(); i++){
-			printf("%d ", visited[i]);
-		}
-		printf("\n");
-		if(group == 1){
-			printf("EMPTY!!\n");
-		}
-	}
+	// if(group != 2){
+	// 	for(int i = 0; i < visited.size(); i++){
+	// 		printf("%d ", visited[i]);
+	// 	}
+	// 	printf("\n");
+	// 	if(group == 1){
+	// 		printf("EMPTY!!\n");
+	// 	}
+	// }
 	
 	return group == 2;
 }
@@ -1323,7 +1323,7 @@ int main(int argc, char** argv){
 	if(mode.compare("run") == 0){
 		if(argc != 6){
 			printf("Error: Called program with mode run (i.e. read from file with each of the required runs, and run specified line), which should look like ");
-			printf("./augmentation run runName lineNum printInfo plotGraph\nWanted 4 inputs but got %d! Stopping now...\n", argc);
+			printf("./augmentation run runName lineNum printInfo plotGraph\nWanted 6 inputs but got %d! Stopping now...\n", argc);
 			printf("Found inputs:\n");
 			for(int i = 0; i < argc; i++){
 				printf("%s\n", argv[i]);
@@ -1406,20 +1406,17 @@ int main(int argc, char** argv){
 				printf("Wrong read of graph!\n");
 				exit(0);
 			}
-
-			// Output to file
-			outputFile.open(outputFilename, ios_base::app);
-			outputFile << to_string(size) << " " << to_string(seed);
-			if(inputType == 'M'){outputFile << " MST ";}
-			else{outputFile << " TopBottom ";}
-			outputFile << to_string(disaster) << " " << to_string(search) << "(" << to_string(weight) << ") " << to_string(xDim) << " " << to_string(yDim) << " ";
-			outputFile.close();
 		
 			// Augment
 			clock_t t = clock();
 			double cost = augment(graph, disaster, search, weight, printInfo);
 			t = clock() - t;
+			// Output to file
 			outputFile.open(outputFilename, ios_base::app);
+			outputFile << to_string(size) << " " << to_string(seed);
+			if(inputType == 'M'){outputFile << " MST ";}
+			else{outputFile << " TopBottom ";}
+			outputFile << to_string(disaster) << " " << search << "(" << to_string(weight) << ") " << to_string(xDim) << " " << to_string(yDim) << " ";
 			outputFile << setprecision(5) << ((float)t)/CLOCKS_PER_SEC << " " << cost << "\n";
 			outputFile.close();
 
