@@ -1250,7 +1250,7 @@ void connectGraph(Graph* graph){
 	group--;
 	// Graph is connected when there is only one group
 	while(group != 1){
-		printf("Group %d\n", group);
+		// printf("Group %d\n", group);
 		double bestEdgeCost = DBL_MAX;
 		pair<int, int> edge;
 		// Find shortest edge which does not intersect with current edges
