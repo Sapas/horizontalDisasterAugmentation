@@ -1320,6 +1320,64 @@ int main(int argc, char** argv){
 	// At this point have at least one input, read it to know what's going on
 	string mode = argv[1];
 
+	// Just realised I might get serious problems if not all graph files already exist, so now need a section which does not augment anything, only creates graph files
+	if(mode.compare("graphCreation") == 0){
+		if(argc != 3){
+			printf("Error: Called program with mode graphCreation (i.e. read from file with each of the required runs, and create graphs), which should look like ");
+			printf("./augmentation graphCreation runName\nWanted 3 inputs but got %d! Stopping now...\n", argc);
+			printf("Found inputs:\n");
+			for(int i = 0; i < argc; i++){
+				printf("%s\n", argv[i]);
+			}
+			return 0;
+		}
+		string runName = argv[2];
+		string inputFilename = "../data/runScripts/" + runName + "-runScript.txt";
+		ifstream inputFile(inputFilename, ios::in);
+		if(!inputFile.is_open()){printf("Error: Could not open input file %s to read experiment specifications! Stopping now...\n", inputFilename.c_str()); return 0;}
+		string line;
+		Graph* graph;
+		// Skip first line
+		getline(inputFile, line);
+		while(getline(inputFile, line)){
+			// Read info
+			stringstream ss(line);
+			string token;
+			getline(ss, token, ' ');
+			int size = stoi(token);
+			getline(ss, token, ' ');
+			stringstream ss2(token);
+			getline(ss2, token, '-');
+			int seedStart = stoi(token);
+			getline(ss2, token, '-');
+			int seedEnd = stoi(token);
+			getline(ss, token, ' ');
+			char inputType = token[0];
+			// Skip next, it is disaster
+			getline(ss, token, ' ');
+			// Skip next, it is search
+			getline(ss, token, ' ');
+			getline(ss, token, ' ');
+			int xDim = stoi(token);
+			getline(ss, token, ' ');
+			int yDim = stoi(token);
+			for(int seed = seedStart; seed <= seedEnd; seed++){
+				graph = new Graph();
+				string graphFilename;
+				if(inputType == 'M'){graphFilename = "../data/graphs/graph_n" + to_string(size) + "_s" + to_string(seed) + "_MST_" + to_string(xDim) + "x" + to_string(yDim) + ".txt";}
+				else{graphFilename = "../data/graphs/graph_n" + to_string(size) + "_s" + to_string(seed) + "_TopBottom_" + to_string(xDim) + "x" + to_string(yDim) + ".txt";}
+				if(read_graph(graph, graphFilename) == 1){
+					printf("Creating graph filename %s\n", graphFilename.c_str());
+					generate_graph(graph, size, 0, xDim, yDim, seed, 0);
+					connectGraph(graph);
+					write_graph(graph, graphFilename);
+				}
+				delete graph;
+			}
+		}
+
+	}
+
 	if(mode.compare("run") == 0){
 		if(argc != 6){
 			printf("Error: Called program with mode run (i.e. read from file with each of the required runs, and run specified line), which should look like ");
@@ -1427,6 +1485,7 @@ int main(int argc, char** argv){
 			// plotFilename = "../data/plots/AA_custom_run_n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_search_" + search + "(" + to_string((int)weight) + ").svg";
 
 			if(plotGraph){write_graph_to_svg(graph, disaster, plotFilename, xDim, yDim, true, false, false, true, true, false, false);}
+			delete graph;
 		}
 	
 

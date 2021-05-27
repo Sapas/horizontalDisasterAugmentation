@@ -27,6 +27,8 @@ cd cpp_code/
 # Get time
 start=`date +%s`
 
+# First create the required graphs
+./augmentation graphCreation ${runName}
 # Cycle through lines in runScript
 for ((n = 1; n <= $lines; n = n + 1)); do
 	./augmentation run ${runName} ${n} ${print_info} ${create_graphs}
