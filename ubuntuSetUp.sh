@@ -19,6 +19,6 @@ make
 # Run program to create the desired run files
 ./augmentation setup smallTest \{10,20,5\} \{1,5\} \{M,T\} \{10,200\} \{o2,o3,q2,q4\} 500 500
 ./augmentation setup preliminaryRun \{10,100,10\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{a,b,c,d,e,i,j,k,o2,p,s\} 500 500
-./augmentation setup mainRun \{50,100,10\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,p1,p2,p3,p4,u1,u2,u3,u4\} 500 500
-./augmentation setup mainRunLarge \{100,500,50\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,p1,p2,p3,p4,u1,u2,u3,u4\} 500 500
+./augmentation setup mainRun \{50,100,10\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,q1,q2,q3,q4,u1,u2,u3,u4\} 500 500
+./augmentation setup mainRunLarge \{100,500,50\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,q1,q2,q3,q4,u1,u2,u3,u4\} 500 500
 
