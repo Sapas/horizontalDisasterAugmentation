@@ -995,7 +995,7 @@ pair<list<Vertex>, double> random_leaf_pair_search(Graph* graph, double length, 
 }
 
 
-double randomAugment(Graph* graph, double length, double weight){
+double randomAugment(Graph* graph, double length, double weight, bool printInfo){
 	// Want to do the same as normal augment, but want to repeat it a few times
 	makeAdjacencyMatrix(graph);
 	if(!isConnected(graph)){
@@ -1152,8 +1152,8 @@ double randomAugment(Graph* graph, double length, double weight){
 
 
 
-double augment(Graph* graph, double length, char searchType, double weight){
-	if(searchType == 'u'){return randomAugment(graph, length, weight);}
+double augment(Graph* graph, double length, char searchType, double weight, bool printInfo){
+	if(searchType == 'u'){return randomAugment(graph, length, weight, printInfo);}
 	makeAdjacencyMatrix(graph);
 	if(!isConnected(graph)){
 		printf("Graph is not connected! Ending now.\n");
@@ -1163,7 +1163,7 @@ double augment(Graph* graph, double length, char searchType, double weight){
 	double cost = 0;
 	pair<list<Vertex>, double> prevEdge;
 	do{
-		printf("\n\n================== COUNT IS %d ================== \n\n", count);
+		if(printInfo){printf("\n\n================== COUNT IS %d ================== \n\n", count);}
 		
 		// Reset values
 		resetGraph(graph);
@@ -1220,11 +1220,13 @@ double augment(Graph* graph, double length, char searchType, double weight){
 		}
 		// Add new edge to graph	
 		addSegment(graph, edge.first);
-		printf("Best candidate edge has cost %.2f and nodes ", edge.second);
-		for(auto it = edge.first.begin(); it != edge.first.end(); ++it){
-			printf("%d ", it->id);
+		if(printInfo){
+			printf("Best candidate edge has cost %.2f and nodes ", edge.second);
+			for(auto it = edge.first.begin(); it != edge.first.end(); ++it){
+				printf("%d ", it->id);
+			}
+			printf("\n");
 		}
-		printf("\n");
 		count++;
 		cost += edge.second;
 		
@@ -1300,7 +1302,7 @@ vector<string> processInputString(string input){
 	string inside = input.substr(1, (int)input.size() - 2);
 	stringstream ss(inside);
 	string token;
-	while(getline(ss, token, ' ')){
+	while(getline(ss, token, ',')){
 		splitString.push_back(token);
 	}
 	return splitString;
@@ -1317,209 +1319,413 @@ int main(int argc, char** argv){
 	}
 	// At this point have at least one input, read it to know what's going on
 	string mode = argv[1];
-	if(mode.compare("setup") == 0){
-		if(argc != 9){
-			printf("Error: Called program with mode setup (i.e. create file with each of the required runs), which should look like ");
-			printf("./augmentation setup {sizeStart,sizeEnd,stepSize} {seedsStart,seedsEnd} {M,T} {l_1, ..., l_k} {s_1,...,s_n} xDim yDim\nStopping now...\n");
+
+	if(mode.compare("run") == 0){
+		if(argc != 6){
+			printf("Error: Called program with mode run (i.e. read from file with each of the required runs, and run specified line), which should look like ");
+			printf("./augmentation run runName lineNum printInfo plotGraph\nWanted 4 inputs but got %d! Stopping now...\n", argc);
+			printf("Found inputs:\n");
+			for(int i = 0; i < argc; i++){
+				printf("%s\n", argv[i]);
+			}
 			return 0;
 		}
-		vector<string> sizes = processInputString(argv[2]);
-		vector<string> seeds = processInputString(argv[3]);
-		vector<string> inputTypes = processInputString(argv[4]);
-		vector<string> disasterLengths = processInputString(argv[5]);
-		vector<string> searchStrategies = processInputString(argv[6]);
-		double xDim = stof(argv[7]);
-		double yDim = stof(argv[8]);
+		// Open file where 
+		string runName = argv[2];
+		int arrayNum = stoi(argv[3]);
+		bool printInfo = (bool)stoi(argv[4]);
+		bool plotGraph = (bool)stoi(argv[5]);
+		// Check arrayNum is not 0, as this will get the header
+		if(arrayNum == 0){printf("Error: Specified first line of file as inputs to run, but this is the header line! Stopping now...\n"); return 0;}
+		// Now need to get to the file in read mode, and go to the right row
+		string inputFilename = "../data/runScripts/" + runName + "-runScript.txt";
+		ifstream inputFile(inputFilename, ios::in);
+		if(!inputFile.is_open()){printf("Error: Could not open input file %s to read experiment specifications! Stopping now...\n", inputFilename.c_str()); return 0;}
+		string line;
+		int lineNum = 0;
+		bool found = false;
+		while(getline(inputFile, line)){
+			if(lineNum == arrayNum){found = true; break;}
+			lineNum++;
+		}
+		// Check that for the right line insted of being finished
+		if(!found){printf("Error: Did not get to the desired array job, specified job %d but file only has %d specifications! Stopping now...\n", arrayNum, lineNum-1); return 0;}
+		// line should contain all the desired information, let's extract it
+		stringstream ss(line);
+		string token;
+		getline(ss, token, ' ');
+		int size = stoi(token);
+		getline(ss, token, ' ');
+		stringstream ss2(token);
+		getline(ss2, token, '-');
+		int seedStart = stoi(token);
+		getline(ss2, token, '-');
+		int seedEnd = stoi(token);
+		getline(ss, token, ' ');
+		char inputType = token[0];
+		getline(ss, token, ' ');
+		double disaster = stof(token);
+		getline(ss, token, ' ');
+		char search = token[0];
+		int weight = 0;
+		if(search == 'o' || search == 'q' || search == 'u'){
+			string stringWeight = token.substr(1, (int)token.size() - 1);
+			weight = stoi(stringWeight);
+		}
+		getline(ss, token, ' ');
+		int xDim = stoi(token);
+		getline(ss, token, ' ');
+		int yDim = stoi(token);
+		inputFile.close();
+
+		// Get work going 
+		initialize();
+		Graph* graph;
+		// Initialise output file
+		string outputFilename = "../data/runResults/" + runName + "_arrayJob" + to_string(arrayNum) + ".txt";
+		ofstream outputFile(outputFilename);
+		if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", outputFilename.c_str()); return 0;}
+		outputFile << "size seed input_type disaster search xDim yDim augment_time cost\n";
+		outputFile.close();
+
+		// Cycle through the seeds
+		for(int seed = seedStart; seed <= seedEnd; seed++){
+			printf("Got specified size %d, seed %d, inputType %c, disasterLength %.2f, search %c, weight %d, xDim %d, yDim %d\n", size, seed, inputType, disaster, search, weight, xDim, yDim);
+			graph = new Graph();
+			string graphFilename;
+			// Get graph
+			if(inputType == 'M'){graphFilename = "../data/graphs/graph_n" + to_string(size) + "_s" + to_string(seed) + "_MST_" + to_string(xDim) + "x" + to_string(yDim) + ".txt";}
+			else{graphFilename = "../data/graphs/graph_n" + to_string(size) + "_s" + to_string(seed) + "_TopBottom_" + to_string(xDim) + "x" + to_string(yDim) + ".txt";}
+			if(read_graph(graph, graphFilename) == 1){
+				printf("All good though, creating it now.\n");
+				generate_graph(graph, size, 0, xDim, yDim, seed, 0);
+				connectGraph(graph);
+				write_graph(graph, graphFilename);
+			}
+			if(graph->vertices.size() == 0){
+				printf("Wrong read of graph!\n");
+				exit(0);
+			}
+
+			// Output to file
+			outputFile.open(outputFilename, ios_base::app);
+			outputFile << to_string(size) << " " << to_string(seed);
+			if(inputType == 'M'){outputFile << " MST ";}
+			else{outputFile << " TopBottom ";}
+			outputFile << to_string(disaster) << " " << to_string(search) << "(" << to_string(weight) << ") " << to_string(xDim) << " " << to_string(yDim) << " ";
+			outputFile.close();
+		
+			// Augment
+			clock_t t = clock();
+			double cost = augment(graph, disaster, search, weight, printInfo);
+			t = clock() - t;
+			outputFile.open(outputFilename, ios_base::app);
+			outputFile << setprecision(5) << ((float)t)/CLOCKS_PER_SEC << " " << cost << "\n";
+			outputFile.close();
+
+			string plotFilename;
+			if(inputType == 'M'){plotFilename = "../data/plots/n" + to_string(size) + "_s" + to_string(seed) + "_l" + to_string(disaster) + "_MST_search_" + search + "(" + to_string((int)weight) + ").svg";}
+			else{plotFilename = "../data/plots/n" + to_string(size) + "_s" + to_string(seed) + "_l" + to_string(disaster) + "_TopBottom_search_" + search + "(" + to_string((int)weight) + ").svg";}
+
+			// plotFilename = "../data/plots/AA_custom_run_n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_search_" + search + "(" + to_string((int)weight) + ").svg";
+
+			if(plotGraph){write_graph_to_svg(graph, disaster, plotFilename, xDim, yDim, true, false, false, true, true, false, false);}
+		}
+	
+
+	}else if(mode.compare("setup") == 0){
+		if(argc != 10){
+			printf("Error: Called program with mode setup (i.e. create file with each of the required runs), which should look like ");
+			printf("./augmentation setup runName {sizeStart,sizeEnd,stepSize} {seedsStart,seedsEnd} {M,T} {l_1, ..., l_k} {s_1,...,s_n} xDim yDim\nWanted 9 inputs but got %d! Stopping now...\n", argc);
+			printf("Found inputs:\n");
+			for(int i = 0; i < argc; i++){
+				printf("%s\n", argv[i]);
+			}
+			return 0;
+		}
+		// Extract info
+		string runName = argv[2];
+		vector<string> sizes = processInputString(argv[3]);
+		vector<string> seeds = processInputString(argv[4]);
+		vector<string> inputTypes = processInputString(argv[5]);
+		vector<string> disasterLengths = processInputString(argv[6]);
+		vector<string> searchStrategies = processInputString(argv[7]);
+		int xDim = stoi(argv[8]);
+		int yDim = stoi(argv[9]);
 
 		// Check all went well
-		if((int)sizes.size() != 3){printf("Received sizes information, expected {sizeStart,sizeEnd,stepSize}, but got %s! Stopping now...\n", argv[2]); return 0;}
+		if((int)sizes.size() != 3){printf("Received sizes information, expected {sizeStart,sizeEnd,stepSize}, but got %s (processed to size %d)! Stopping now...\n", argv[2], (int)sizes.size()); return 0;}
 		if((int)seeds.size() != 2){printf("Received seeds information, expected {seedsStart,seedsEnd}, but got %s! Stopping now...\n", argv[3]); return 0;}
-		if((int)inputTypes.size() == 0){printf("Received inputType information, expected {M,T}, {M} or {T}, but got %s! Stopping now...\n", argv[4]); return 0;}
+		if((int)inputTypes.size() == 0 || (int)inputTypes.size() > 2){printf("Received inputType information, expected {M,T}, {M} or {T}, but got %s! Stopping now...\n", argv[4]); return 0;}
 		if((int)disasterLengths.size() == 0){printf("Received disaster length information, expected {l_1, ..., l_k}, but got %s! Stopping now...\n", argv[5]); return 0;}
-		if((int)searchStrategies.size() != 3){printf("Received search strategies information, expected {s_1,...,s_n}, but got %s! Stopping now...\n", argv[6]); return 0;}
+		if((int)searchStrategies.size() == 0){printf("Received search strategies information, expected {s_1,...,s_n}, but got %s! Stopping now...\n", argv[6]); return 0;}
 
-		// Now to extract info 
-	}
-
-
-	
-	double xDim, yDim, cutSize, maxEdgeLength;
-	int size, edges, seed;
-	int sizeStart, sizeEnd, sizeInterval;
-	double disasterStart, disasterEnd, disasterInterval;
-	int seedStart, seedEnd;
-	clock_t t;
-	
-	
-
-	return 0;
-
-
-
-
-
-
-
-
-
-
-	if(argc == 1){
-
-		// FOR TESTING
-		// Graph* graph = new Graph();
-		// read_graph(graph, "../data/graphs/graph_custom.txt");
-		// augment(graph, 10, 'a', 0.0);
-		// string svgFile = "../data/plots/custom_graph_search_a.svg";
-		// write_graph_to_svg(graph, 10, svgFile, 50, 50, true, false, false, true, true, true, true);
-
-		// delete graph;
-		// graph = new Graph();
-		// read_graph(graph, "../data/graphs/graph_custom.txt");
-		// augment(graph, 10, 'b', 0.0);
-		// svgFile = "../data/plots/custom_graph_search_b.svg";
-		// write_graph_to_svg(graph, 10, svgFile, 50, 50, true, false, false, true, true, true, true);
-
-		// delete graph;
-
-		// return 1;
-
-		xDim = 500.0;
-		yDim = 500.0;
-		size = 500;
-		edges = 1000;
-		cutSize = 1.0;
-
-		maxEdgeLength = std::min(xDim,yDim) * 0.3;
-		seed = 0;
-	
-	}else if(argc == 6){
-
-		xDim = stoi(argv[1]);
-		yDim = stoi(argv[2]);
-		size = stoi(argv[3]);
-		edges = stoi(argv[4]);
-		cutSize = stoi(argv[5]);
-		maxEdgeLength = std::min(xDim,yDim) * 0.3;
-		seed = 0;
-
-	}else if(argc == 8){
-
-		xDim = stoi(argv[1]);
-		yDim = stoi(argv[2]);
-		size = stoi(argv[3]);
-		edges = stoi(argv[4]);
-		cutSize = stoi(argv[5]);
-		maxEdgeLength = stoi(argv[6]);
-		seed = stoi(argv[7]);
-
-	}else if(argc == 11){
-
-		xDim = stoi(argv[1]);
-		yDim = stoi(argv[2]);
-		sizeStart = stoi(argv[3]);
-		sizeEnd = stoi(argv[4]);
-		sizeInterval = stoi(argv[5]);
-		disasterStart = stod(argv[6]);
-		disasterEnd = stod(argv[7]);
-		disasterInterval = stod(argv[8]);
-		seedStart = stoi(argv[9]);
-		seedEnd = stoi(argv[10]);
+		// Now check inputs
+		if(stoi(sizes[0]) <= 0 || stoi(sizes[1]) < stoi(sizes[0]) || stoi(sizes[2]) <= 0){
+			printf("Something weird is going on with sizes, want something like {10,100,5}, but got {%d,%d,%d}! Stopping now...\n", stoi(sizes[0]), stoi(sizes[1]), stoi(sizes[2]));
+			return 0;
+		}
+		if(stoi(seeds[0]) <= 0 || stoi(seeds[1]) < stoi(seeds[0])){
+			printf("Something weird is going on with seeds, want something like {1,50}, but got {%d,%d}! Stopping now...\n", stoi(seeds[0]), stoi(seeds[1]));
+			return 0;
+		}
+		for(int i = 0; i < (int)inputTypes.size(); i++){
+			if((int)inputTypes[i].size() != 1){
+				printf("Something weird is going on with inputTypes, want a single character, but got %s! Stopping now...\n", inputTypes[i].c_str());
+				return 0;
+			}
+			if(inputTypes[i][0] != 'M' && inputTypes[i][0] != 'T'){
+				printf("Something weird is going on with inputTypes, want either M or T, but got %s! Stopping now...\n", inputTypes[i].c_str());
+				return 0;
+			}
+		}
+		for(int i = 0; i < (int)disasterLengths.size(); i++){
+			if(stof(disasterLengths[i]) <= 0){
+				printf("Something weird is going on with disaster lengths, want >= 0, but got %.2f! Stopping now...\n", stof(disasterLengths[i]));
+				return 0;
+			}
+		}
+		for(int i = 0; i < (int)searchStrategies.size(); i++){
+			if((int)searchStrategies[i].size() == 0){
+				printf("Something weird is going on with search strategies, got a strategy of length 0! Stopping now...\n");
+				return 0;
+			
+			}else if((int)searchStrategies[i].size() == 1 && searchStrategies[i][0] != 'a' &&
+																searchStrategies[i][0] != 'b' &&
+																searchStrategies[i][0] != 'c' &&
+																searchStrategies[i][0] != 'd' &&
+																searchStrategies[i][0] != 'e' &&
+																searchStrategies[i][0] != 'f' &&
+																searchStrategies[i][0] != 'g' &&
+																searchStrategies[i][0] != 'h' &&
+																searchStrategies[i][0] != 'i' &&
+																searchStrategies[i][0] != 'j' &&
+																searchStrategies[i][0] != 'k' &&
+																searchStrategies[i][0] != 'l' &&
+																searchStrategies[i][0] != 'm' &&
+																searchStrategies[i][0] != 'n' &&
+																searchStrategies[i][0] != 'p' &&
+																searchStrategies[i][0] != 'r' &&
+																searchStrategies[i][0] != 's' &&
+																searchStrategies[i][0] != 't'){
+				printf("Something weird is going on with search strategies, got a strategy %s of length 1, but should be one of a, b, c, d, e, f, g, h, i, j, k, l, m, n, p, r, s, t! Stopping now...\n", searchStrategies[i].c_str());
+				return 0;
+			
+			}else if((int)searchStrategies[i].size() > 1 &&
+						searchStrategies[i][0] != 'o' &&
+						searchStrategies[i][0] != 'q' &&
+						searchStrategies[i][0] != 'u'){
+				printf("Something weird is going on with search strategies, got a strategy %s of length > 1, but should be one of o, q, u followed by int weight! Stopping now...\n", searchStrategies[i].c_str());
+				return 0;
+			}
+		}
 		
-	}else{
-		printf("Not right usage\n");
-		return 0;
-	}
-
-	// Initialise lookup table
-	initialize();
-
-
-
-	// HARDCODING TESTING 
-	// vector<int> sizes{60, 60, 60, 60, 60, 60, 60, 70, 70, 70, 70, 70, 70, 70, 70, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 60, 60, 60, 70, 70, 70, 70, 70, 80, 80, 80, 80, 80, 80, 90, 90, 90, 90, 90, 90, 90, 90, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
-	// vector<int> seeds{20, 20, 20, 20, 20, 20, 20, 1, 2, 2, 13, 18, 20, 20, 20, 1, 1, 1, 1, 2, 3, 3, 3, 3, 13, 13, 15, 15, 17, 18, 20, 20, 2, 3, 3, 5, 12, 13, 13, 13, 13, 13, 13, 18, 20, 3, 3, 3, 3, 3, 9, 9, 9, 12, 13, 13, 13, 13, 18, 18, 18, 20, 20, 2, 7, 14, 14, 14, 17, 17, 17, 17, 17, 18, 18, 19, 19, 17, 20, 20, 1, 2, 8, 13, 18, 1, 1, 3, 3, 3, 15, 1, 1, 2, 13, 13, 13, 13, 15, 15, 1, 3, 3, 3, 8, 8, 9, 13, 18, 18, 18, 20, 20};
-	// vector<char> inputTypes{'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'M', 'M', 'T', 'T', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M'};
-	// vector<double> lengths{0.001, 0.001, 0.001, 0.001, 100, 100, 300, 300, 300, 300, 300, 300, 100, 100, 300, 100, 100, 100, 100, 300, 300, 300, 300, 300, 300, 300, 300, 300, 100, 300, 300, 300, 300, 300, 300, 100, 300, 0.001, 0.001, 0.001, 100, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 0.001, 0.001, 5, 100, 100, 100, 100, 300, 300, 300, 300, 300, 300, 300, 5, 5, 5, 100, 100, 300, 300, 300, 300, 100, 0.001, 100, 300, 300, 300, 300, 300, 100, 300, 300, 300, 300, 300, 300, 300, 300, 0.001, 0.001, 100, 300, 300, 300, 300, 300, 300, 300, 100, 100, 300, 0.001, 100, 100, 100, 300, 300};
-	// vector<char> searches{'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'q', 'o', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q'};
-	// vector<char> weights{1, 2, 3, 4, 1, 2, 1, 1, 2, 1, 1, 3, 1, 2, 1, 2, 1, 2, 3, 1, 2, 2, 3, 4, 1, 3, 1, 2, 1, 3, 1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 2, 1, 3, 1, 1, 2, 1, 2, 3, 4, 2, 2, 3, 1, 1, 2, 4, 2, 2, 1, 2, 2, 1, 1, 1, 1, 3, 4, 1, 3, 4, 1, 3, 3, 4, 3, 4, 3, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 3, 4, 1, 1, 1, 1, 3, 4, 1, 1, 3, 4, 1, 1, 3, 4, 3, 4, 1, 1, 1, 3, 4, 3, 4};
-	// vector<int> sizes{100, 200, 300, 400, 500};
-	// vector<int> seeds{1, 1, 1, 1, 1};
-	// vector<char> inputTypes{'M', 'M', 'M', 'M', 'M'};
-	// vector<double> lengths{100, 100, 100, 100, 100};
-	// vector<char> searches{'q', 'q', 'q', 'q', 'q'};
-	// vector<char> weights{2, 2, 2, 2, 2};
-	vector<int> sizes{200, 200};
-	vector<int> seeds{1, 1};
-	vector<char> inputTypes{'M', 'M'};
-	vector<double> lengths{100, 100};
-	vector<char> searches{'q', 'o'};
-	vector<char> weights{2, 3};
-	
-	string exec_times_filename = "../data/exec_times/custom_run.txt";
-	ofstream file;
-	file.open(exec_times_filename);
-	if(!file.is_open()){
-		printf("Couldn't open exec_times_filename write to file\n");
-		return 0;
-	}
-	file << "size seed input_type disaster search search_weight augment_time cost\n";
-	file.close();	
-	Graph* graph = new Graph();
-	// Cycle through all the inputs
-	for(int i = 0; i < sizes.size(); i++){
-		int n = sizes[i];
-		int s = seeds[i];
-		double length = lengths[i];
-		double cost = 0.0;
-		char search = searches[i];
-		double weight = weights[i];
-		char inputType = inputTypes[i];
-		string filename;
-
-		printf("\nn = %d s = %d l = %.3f search = %c (%.2f) type = %c\n\n", n, s, length, search, weight, inputType);
-
-		file.open(exec_times_filename, ios_base::app);
-		file << n << " " << s;
-		if(inputType == 'M'){file << " MST ";}
-		else{file << " TopBottom ";}
-		file << length << " " << search << " " << weight << " ";
-
-		delete graph;
-		graph = new Graph();
-
-		if(inputType == 'M'){filename = "../data/graphs/graph_n" + to_string(n) + "_s" + to_string(s) + "_MST.txt";}
-		else{filename = "../data/graphs/graph_n" + to_string(n) + "_s" + to_string(s) + "_TopBottom.txt";}
-
-		// Attempt to read graph, if could not create and write
-		if(read_graph(graph, filename) == 1){
-			printf("All good though, creating it now.\n");
-			generate_graph(graph, n, 0, xDim, yDim, s, 0);
-			connectGraph(graph);
-			write_graph(graph, filename);
+		if(xDim <= 0){
+			printf("Something weird is going on with xDim, want > 0, but got %d! Stopping now...\n", xDim);
+			return 0;
+		}
+		if(yDim <= 0){
+			printf("Something weird is going on with yDim, want > 0, but got %d! Stopping now...\n", yDim);
+			return 0;
 		}
 
-		// read_graph(graph, filename);
-		if(graph->vertices.size() == 0){
-			printf("Wrong read of graph!\n");
-			exit(0);
+		string setupFile = "../data/runScripts/" + runName + "-runScript.txt";
+		ofstream outputFile;
+		outputFile.open(setupFile);
+		if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", setupFile.c_str()); return 0;}
+		outputFile << "size seeds input_type disaster search xDim yDim\n";
+		outputFile.close();
+		int jobs = 0;
+		for(int i = 0; i < (int)searchStrategies.size(); i++){
+			for(int j = 0; j < (int)inputTypes.size(); j++){
+				for(int k = 0; k < (int)disasterLengths.size(); k++){
+					for(int size = stoi(sizes[0]); size <= stoi(sizes[1]); size += stoi(sizes[2])){
+						// for(int seed = stoi(seeds[0]); seed <= stoi(seeds[1]); seed++){
+						outputFile.open(setupFile, ios_base::app);
+						if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", setupFile.c_str()); return 0;}
+						outputFile << to_string(size) << " " << seeds[0] << "-" << seeds[1] << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+						outputFile.close();
+						jobs++;
+						// }
+					}
+				}
+			}
 		}
-
-
-		t = clock();
-		cost = augment(graph, length, search, weight);
-		t = clock() - t;
-		file << setprecision(5) << ((float)t)/CLOCKS_PER_SEC << " " << cost << "\n";
-
-		if(inputType == 'M'){filename = "../data/plots/n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_MST_search_" + search + "(" + to_string((int)weight) + ").svg";}
-		else{filename = "../data/plots/n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_TopBottom_search_" + search + "(" + to_string((int)weight) + ").svg";}
-
-		filename = "../data/plots/AA_custom_run_n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_search_" + search + "(" + to_string((int)weight) + ").svg";
-
-		write_graph_to_svg(graph, length, filename, xDim, yDim, true, false, false, true, true, false, false);
-		file.close();
+		printf("Successfully setup runScript for job %s with %d jobs!\n", runName.c_str(), jobs);
 	}
 
 	return 0;
+
+	// double xDim, yDim, cutSize, maxEdgeLength;
+	// int size, edges, seed;
+	// int sizeStart, sizeEnd, sizeInterval;
+	// double disasterStart, disasterEnd, disasterInterval;
+	// int seedStart, seedEnd;
+	// clock_t t;
+
+
+
+
+
+
+
+	// if(argc == 1){
+
+	// 	// FOR TESTING
+	// 	// Graph* graph = new Graph();
+	// 	// read_graph(graph, "../data/graphs/graph_custom.txt");
+	// 	// augment(graph, 10, 'a', 0.0);
+	// 	// string svgFile = "../data/plots/custom_graph_search_a.svg";
+	// 	// write_graph_to_svg(graph, 10, svgFile, 50, 50, true, false, false, true, true, true, true);
+
+	// 	// delete graph;
+	// 	// graph = new Graph();
+	// 	// read_graph(graph, "../data/graphs/graph_custom.txt");
+	// 	// augment(graph, 10, 'b', 0.0);
+	// 	// svgFile = "../data/plots/custom_graph_search_b.svg";
+	// 	// write_graph_to_svg(graph, 10, svgFile, 50, 50, true, false, false, true, true, true, true);
+
+	// 	// delete graph;
+
+	// 	// return 1;
+
+	// 	xDim = 500.0;
+	// 	yDim = 500.0;
+	// 	size = 500;
+	// 	edges = 1000;
+	// 	cutSize = 1.0;
+
+	// 	maxEdgeLength = std::min(xDim,yDim) * 0.3;
+	// 	seed = 0;
+	
+	// }else if(argc == 6){
+
+	// 	xDim = stoi(argv[1]);
+	// 	yDim = stoi(argv[2]);
+	// 	size = stoi(argv[3]);
+	// 	edges = stoi(argv[4]);
+	// 	cutSize = stoi(argv[5]);
+	// 	maxEdgeLength = std::min(xDim,yDim) * 0.3;
+	// 	seed = 0;
+
+	// }else if(argc == 8){
+
+	// 	xDim = stoi(argv[1]);
+	// 	yDim = stoi(argv[2]);
+	// 	size = stoi(argv[3]);
+	// 	edges = stoi(argv[4]);
+	// 	cutSize = stoi(argv[5]);
+	// 	maxEdgeLength = stoi(argv[6]);
+	// 	seed = stoi(argv[7]);
+
+	// }else if(argc == 11){
+
+	// 	xDim = stoi(argv[1]);
+	// 	yDim = stoi(argv[2]);
+	// 	sizeStart = stoi(argv[3]);
+	// 	sizeEnd = stoi(argv[4]);
+	// 	sizeInterval = stoi(argv[5]);
+	// 	disasterStart = stod(argv[6]);
+	// 	disasterEnd = stod(argv[7]);
+	// 	disasterInterval = stod(argv[8]);
+	// 	seedStart = stoi(argv[9]);
+	// 	seedEnd = stoi(argv[10]);
+		
+	// }else{
+	// 	printf("Not right usage\n");
+	// 	return 0;
+	// }
+
+	// // Initialise lookup table
+	// initialize();
+
+
+
+	// // HARDCODING TESTING 
+	// // vector<int> sizes{60, 60, 60, 60, 60, 60, 60, 70, 70, 70, 70, 70, 70, 70, 70, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 80, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 60, 60, 60, 70, 70, 70, 70, 70, 80, 80, 80, 80, 80, 80, 90, 90, 90, 90, 90, 90, 90, 90, 90, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100};
+	// // vector<int> seeds{20, 20, 20, 20, 20, 20, 20, 1, 2, 2, 13, 18, 20, 20, 20, 1, 1, 1, 1, 2, 3, 3, 3, 3, 13, 13, 15, 15, 17, 18, 20, 20, 2, 3, 3, 5, 12, 13, 13, 13, 13, 13, 13, 18, 20, 3, 3, 3, 3, 3, 9, 9, 9, 12, 13, 13, 13, 13, 18, 18, 18, 20, 20, 2, 7, 14, 14, 14, 17, 17, 17, 17, 17, 18, 18, 19, 19, 17, 20, 20, 1, 2, 8, 13, 18, 1, 1, 3, 3, 3, 15, 1, 1, 2, 13, 13, 13, 13, 15, 15, 1, 3, 3, 3, 8, 8, 9, 13, 18, 18, 18, 20, 20};
+	// // vector<char> inputTypes{'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'M', 'M', 'T', 'T', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'M', 'T', 'T', 'T', 'M', 'M'};
+	// // vector<double> lengths{0.001, 0.001, 0.001, 0.001, 100, 100, 300, 300, 300, 300, 300, 300, 100, 100, 300, 100, 100, 100, 100, 300, 300, 300, 300, 300, 300, 300, 300, 300, 100, 300, 300, 300, 300, 300, 300, 100, 300, 0.001, 0.001, 0.001, 100, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 300, 0.001, 0.001, 5, 100, 100, 100, 100, 300, 300, 300, 300, 300, 300, 300, 5, 5, 5, 100, 100, 300, 300, 300, 300, 100, 0.001, 100, 300, 300, 300, 300, 300, 100, 300, 300, 300, 300, 300, 300, 300, 300, 0.001, 0.001, 100, 300, 300, 300, 300, 300, 300, 300, 100, 100, 300, 0.001, 100, 100, 100, 300, 300};
+	// // vector<char> searches{'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'q', 'o', 'o', 'q', 'o', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q', 'q'};
+	// // vector<char> weights{1, 2, 3, 4, 1, 2, 1, 1, 2, 1, 1, 3, 1, 2, 1, 2, 1, 2, 3, 1, 2, 2, 3, 4, 1, 3, 1, 2, 1, 3, 1, 2, 1, 2, 3, 4, 1, 2, 3, 4, 2, 1, 3, 1, 1, 2, 1, 2, 3, 4, 2, 2, 3, 1, 1, 2, 4, 2, 2, 1, 2, 2, 1, 1, 1, 1, 3, 4, 1, 3, 4, 1, 3, 3, 4, 3, 4, 3, 1, 1, 1, 1, 1, 1, 4, 1, 1, 1, 3, 4, 1, 1, 1, 1, 3, 4, 1, 1, 3, 4, 1, 1, 3, 4, 3, 4, 1, 1, 1, 3, 4, 3, 4};
+	// // vector<int> sizes{100, 200, 300, 400, 500};
+	// // vector<int> seeds{1, 1, 1, 1, 1};
+	// // vector<char> inputTypes{'M', 'M', 'M', 'M', 'M'};
+	// // vector<double> lengths{100, 100, 100, 100, 100};
+	// // vector<char> searches{'q', 'q', 'q', 'q', 'q'};
+	// // vector<char> weights{2, 2, 2, 2, 2};
+	// vector<int> sizes{200, 200};
+	// vector<int> seeds{1, 1};
+	// vector<char> inputTypes{'M', 'M'};
+	// vector<double> lengths{100, 100};
+	// vector<char> searches{'q', 'o'};
+	// vector<char> weights{2, 3};
+	
+	// string exec_times_filename = "../data/exec_times/custom_run.txt";
+	// ofstream file;
+	// file.open(exec_times_filename);
+	// if(!file.is_open()){
+	// 	printf("Couldn't open exec_times_filename write to file\n");
+	// 	return 0;
+	// }
+	// file << "size seed input_type disaster search search_weight augment_time cost\n";
+	// file.close();	
+	// Graph* graph = new Graph();
+	// // Cycle through all the inputs
+	// for(int i = 0; i < sizes.size(); i++){
+	// 	int n = sizes[i];
+	// 	int s = seeds[i];
+	// 	double length = lengths[i];
+	// 	double cost = 0.0;
+	// 	char search = searches[i];
+	// 	double weight = weights[i];
+	// 	char inputType = inputTypes[i];
+	// 	string filename;
+
+	// 	printf("\nn = %d s = %d l = %.3f search = %c (%.2f) type = %c\n\n", n, s, length, search, weight, inputType);
+
+	// 	file.open(exec_times_filename, ios_base::app);
+	// 	file << n << " " << s;
+	// 	if(inputType == 'M'){file << " MST ";}
+	// 	else{file << " TopBottom ";}
+	// 	file << length << " " << search << " " << weight << " ";
+
+	// 	delete graph;
+	// 	graph = new Graph();
+
+	// 	if(inputType == 'M'){filename = "../data/graphs/graph_n" + to_string(n) + "_s" + to_string(s) + "_MST.txt";}
+	// 	else{filename = "../data/graphs/graph_n" + to_string(n) + "_s" + to_string(s) + "_TopBottom.txt";}
+
+	// 	// Attempt to read graph, if could not create and write
+	// 	if(read_graph(graph, filename) == 1){
+	// 		printf("All good though, creating it now.\n");
+	// 		generate_graph(graph, n, 0, xDim, yDim, s, 0);
+	// 		connectGraph(graph);
+	// 		write_graph(graph, filename);
+	// 	}
+
+	// 	// read_graph(graph, filename);
+	// 	if(graph->vertices.size() == 0){
+	// 		printf("Wrong read of graph!\n");
+	// 		exit(0);
+	// 	}
+
+
+	// 	t = clock();
+	// 	cost = augment(graph, length, search, weight);
+	// 	t = clock() - t;
+	// 	file << setprecision(5) << ((float)t)/CLOCKS_PER_SEC << " " << cost << "\n";
+
+	// 	if(inputType == 'M'){filename = "../data/plots/n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_MST_search_" + search + "(" + to_string((int)weight) + ").svg";}
+	// 	else{filename = "../data/plots/n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_TopBottom_search_" + search + "(" + to_string((int)weight) + ").svg";}
+
+	// 	filename = "../data/plots/AA_custom_run_n" + to_string(n) + "_s" + to_string(s) + "_l" + to_string(length) + "_search_" + search + "(" + to_string((int)weight) + ").svg";
+
+	// 	write_graph_to_svg(graph, length, filename, xDim, yDim, true, false, false, true, true, false, false);
+	// 	file.close();
+	// }
+
+	// return 0;
 
 	// UNCOMMENT FROM HERE
 	// // vector<char> searches{'n', 'h', 'l', 's', 'p', 'c', 'x'};
