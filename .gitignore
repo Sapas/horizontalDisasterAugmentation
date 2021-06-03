@@ -14,3 +14,5 @@ data/
 !data/graphs/AAinfo.txt
 !data/runResults/AAinfo.txt
 !data/runScripts/AAinfo.txt
+# Ignore setup files for the cluster for now
+setup

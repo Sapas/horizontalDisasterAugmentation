@@ -14,4 +14,9 @@ make
 ./augmentation setup preliminaryRun \{10,100,10\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{a,b,c,d,e,i,j,k,o2,p,s\} 500 500
 ./augmentation setup mainRun \{50,100,10\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,q1,q2,q3,q4,q1,q2,q3,q4\} 500 500
 ./augmentation setup mainRunLarge \{100,500,50\} \{1,25\} \{M,T\} \{0.001,5,100,300\} \{o1,o2,o3,o4,q1,q2,q3,q4,u1,u2,u3,u4\} 500 500
+# Run program to create the graphs
+./augmentation graphCreation smallTest
+./augmentation graphCreation preliminaryRun
+./augmentation graphCreation mainRun
+./augmentation graphCreation mainRunLarge
 

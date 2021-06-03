@@ -36,3 +36,4 @@ done
 
 end=`date +%s`
 echo "Total execution time: $((end-start)) seconds"
+
