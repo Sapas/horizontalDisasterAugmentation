@@ -118,31 +118,7 @@ void checkPotentialLeaf(Graph* graph, vector<int> &potentialLeaf, vector<int> &m
 	}
 }
 
-void findLeaves(Graph* graph){
-	// Cycle through the min cuts and their labels, then call another function
-	// which looks at whether the potential leaf is a leaf (at least currently)
-	auto cutIt = graph->minCuts.begin();
-	auto labelIt = graph->minCutLabels.begin();
-	while(cutIt != graph->minCuts.end() && labelIt != graph->minCutLabels.end()){
-		vector<int> potentialLeaf1;
-		vector<int> potentialLeaf2;
-		potentialLeaf1.reserve((int)graph->vertices.size());
-		potentialLeaf2.reserve((int)graph->vertices.size());
-
-		for(int i = 0; i < labelIt->size(); i++){
-			if((*labelIt)[i] == 1){
-				potentialLeaf1.push_back(i);
-			}else if((*labelIt)[i] == 2){
-				potentialLeaf2.push_back(i);
-			}else{
-				printf("Wrong label in leaf finding, got %d\n",(*labelIt)[i]);
-			}
-		}
-		checkPotentialLeaf(graph, potentialLeaf1, *cutIt);
-		checkPotentialLeaf(graph, potentialLeaf2, *cutIt);
-		++cutIt;
-		++labelIt;
-	}
+void storeNodeLeaves(Graph* graph){
 	// Store the leaves of each node. Note there might be more than one!
 	// Start by allocating memory
 	vector<vector<int> > nodeLeaves;
@@ -170,6 +146,34 @@ void findLeaves(Graph* graph){
 		}
 	}
 	graph->nodeLeaves = nodeLeaves;
+}
+
+void findLeaves(Graph* graph){
+	// Cycle through the min cuts and their labels, then call another function
+	// which looks at whether the potential leaf is a leaf (at least currently)
+	auto cutIt = graph->minCuts.begin();
+	auto labelIt = graph->minCutLabels.begin();
+	while(cutIt != graph->minCuts.end() && labelIt != graph->minCutLabels.end()){
+		vector<int> potentialLeaf1;
+		vector<int> potentialLeaf2;
+		potentialLeaf1.reserve((int)graph->vertices.size());
+		potentialLeaf2.reserve((int)graph->vertices.size());
+
+		for(int i = 0; i < labelIt->size(); i++){
+			if((*labelIt)[i] == 1){
+				potentialLeaf1.push_back(i);
+			}else if((*labelIt)[i] == 2){
+				potentialLeaf2.push_back(i);
+			}else{
+				printf("Wrong label in leaf finding, got %d\n",(*labelIt)[i]);
+			}
+		}
+		checkPotentialLeaf(graph, potentialLeaf1, *cutIt);
+		checkPotentialLeaf(graph, potentialLeaf2, *cutIt);
+		++cutIt;
+		++labelIt;
+	}
+	storeNodeLeaves(graph);
 }
 
 void depthFirstSearch(Graph* graph, vector< pair <int,int> > &forbidden, vector<int> &visited, int vertexId, int group){
@@ -216,7 +220,50 @@ bool checkBipartite(vector<vector<int> > &adjacencyMatrix, vector<int> &group, i
 	return true;
 }
 
-void checkSingleEdgesCut(Graph* graph){
+void checkSingleEdgesForLeaves(Graph* graph){
+	for(int i = 0; i < graph->edges.size(); i++){
+		vector<int> cut;
+		cut.push_back(graph->edges[i]->id);
+		vector< pair <int,int> > forbidden;
+		forbidden.push_back(make_pair(graph->edges[i]->start->id,graph->edges[i]->end->id));
+		// Simply check if graph is disconnected, if so this is a cut!
+		vector<int> visited(graph->vertices.size(), 0);
+		int group = 1;
+		for(int i = 0; i < graph->vertices.size(); i++){
+			if(visited[i] != 0){continue;}
+			depthFirstSearch(graph, forbidden, visited, i, group);
+			group++;
+		}
+		// If the graph is connected; if it is not an l-cut!
+		if(group == 2){continue;}
+
+		// Since it is not connected, either side could be a leaf, process it
+		// First store potential leaf (i.e. all nodes in the block)
+		vector<int> potentialLeaf1;
+		vector<int> potentialLeaf2;
+		potentialLeaf1.reserve(graph->vertices.size());
+		potentialLeaf2.reserve(graph->vertices.size());
+		for(int i = 0; i < graph->vertices.size(); i++){
+			if(visited[i] == 1){
+				potentialLeaf1.push_back(i);
+			}else if(visited[i] == 2){
+				potentialLeaf2.push_back(i);
+			}else{
+				printf("Something weird going on, more than 2 blocks when removing a single edge!\n");
+			}
+		}
+		// Now store potential minimal l-cut (which is a single edge)
+		vector<int> potentialLeafCut;
+		potentialLeafCut.push_back(i);
+		// Have two potential leaves, process them and store them if it could be!
+		checkPotentialLeaf(graph, potentialLeaf1, potentialLeafCut);
+		checkPotentialLeaf(graph, potentialLeaf2, potentialLeafCut);
+	}
+}
+
+
+void checkSingleEdgesCut(Graph* graph, bool onlyCheckForLeaves){
+	if(onlyCheckForLeaves){return checkSingleEdgesForLeaves(graph);}
 	for(int i = 0; i < graph->edges.size(); i++){
 		vector<int> cut;
 		cut.push_back(graph->edges[i]->id);
@@ -270,7 +317,87 @@ void findLabelsAndMinCuts(Graph* graph){
 	}
 }
 
-void analyseEdgeSet(Graph* graph, vector<int> &vectorEdgesId, int left, int right, int middle){
+
+void analyseEdgeSetForLeaves(Graph* graph, vector<int> &vectorEdgesId, int left, int right){
+	// This should be very similar to the analyseEdgeSet function
+	// First extract edges that have been destroyed
+	vector<int> edgeSet(right - left + 1);
+	vector<pair<int,int> > forbidden(right - left + 1);
+	for(int i = left; i <= right; i++){
+		edgeSet[i - left] = vectorEdgesId[i];
+		forbidden[i - left] = make_pair(graph->edges[vectorEdgesId[i]]->start->id, graph->edges[vectorEdgesId[i]]->end->id);
+	}
+	// Ok first thing I want to do, is to do a depth first search to find the blocks after removing these edges
+	vector<int> visited(graph->vertices.size(), 0);
+	int group = 1;
+	for(int i = 0; i < graph->vertices.size(); i++){
+		if(visited[i] != 0){continue;}
+		depthFirstSearch(graph, forbidden, visited, i, group);
+		group++;
+	}
+	// Check if the graph is connected; if it is no l-cuts here 
+	bool connected = true;
+	for(int i = 0; i < graph->vertices.size(); i++){
+		if(visited[i] != 1){
+			connected = false;
+			break;
+		}
+	}
+	if(connected){return;}
+	// Ok so now have blocks, all of which are potential leaves. 
+	// For each block B check G_{V\B} is connected
+	for(int block = 1; block < group; block++){
+		// First need to check that shores of cut associated 
+		// with this block are connected, i.e. check the cut is minimal
+		vector<int> potentialLeafCut;
+		potentialLeafCut.reserve(right - left + 1);
+		vector<pair<int,int> > localForbidden;
+		localForbidden.reserve(right - left + 1);
+		// Store l-cut at the same time
+		for(int i = left; i <= right; i++){
+			int startNode = graph->edges[vectorEdgesId[i]]->start->id;
+			int endNode = graph->edges[vectorEdgesId[i]]->end->id;
+
+			if(visited[startNode] == visited[endNode] ||
+				(visited[startNode] != block &&
+					visited[endNode] != block)){
+				continue;
+			}
+			// This is in the cut! Store it
+			potentialLeafCut.push_back(vectorEdgesId[i]);
+			localForbidden.push_back(make_pair(startNode, endNode));
+		}
+		// Now run depth first search to see whether shores are connected
+		vector<int> localVisited(graph->vertices.size(), 0);
+		int localGroup = 1;
+		for(int i = 0; i < graph->vertices.size(); i++){
+			if(localVisited[i] != 0){continue;}
+			depthFirstSearch(graph, localForbidden, localVisited, i, localGroup);
+			localGroup++;
+		}
+		// If more than 2 groups, shores not connected
+		if(localGroup > 3){continue;}
+
+		// Now can store potential leaf (i.e. all nodes in the block)
+		vector<int> potentialLeaf;
+		potentialLeaf.reserve(graph->vertices.size());
+		for(int i = 0; i < graph->vertices.size(); i++){
+			if(visited[i] == block){
+				potentialLeaf.push_back(i);
+			}
+		}
+
+		// Have a potential leaf, process it and store it if it could be!
+		checkPotentialLeaf(graph, potentialLeaf, potentialLeafCut);
+	}
+
+}
+
+
+
+
+void analyseEdgeSet(Graph* graph, vector<int> &vectorEdgesId, int left, int right, int middle, bool onlyCheckForLeaves){
+	if(onlyCheckForLeaves){return analyseEdgeSetForLeaves(graph, vectorEdgesId, left, right);}
 	// First of all need to extract the edges from the active edges vector
 	vector<int> edgeSet(right - left + 1);
 	vector<pair<int,int> > forbidden(right - left + 1);
@@ -425,7 +552,7 @@ void analyseEdgeSet(Graph* graph, vector<int> &vectorEdgesId, int left, int righ
 	}
 }
 
-void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, int* queue_node_id){
+void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, int* queue_node_id, bool onlyCheckForLeaves){
 	// printf("Height %.2f edge %d (%d, %d) start\n", q.top().height, q.top().line1->id, q.top().line1->start->id, q.top().line1->end->id);
 	std::vector<int> vectorEdgesId(graph->edges.size() + 1);
 	activeEdges->insert(q.top().line1, q.top().height);
@@ -443,7 +570,7 @@ void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::pri
 		while(vectorEdgesId[right] != -1){
 			double dist = distanceAtHeight(graph->edges[vectorEdgesId[left]], graph->edges[vectorEdgesId[right]], q.top().height);
 			if(abs(dist - length) < TOLERANCE || dist > length){break;}
-			analyseEdgeSet(graph, vectorEdgesId, left, right, middle);
+			analyseEdgeSet(graph, vectorEdgesId, left, right, middle, onlyCheckForLeaves);
 			right++;
 		}
 		left--;
@@ -458,7 +585,7 @@ void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::pri
 		// If close enough, add subsets now
 		double dist = distanceAtHeight(graph->edges[vectorEdgesId[left]], graph->edges[vectorEdgesId[middle]], q.top().height);
 		if(dist < length && abs(dist - length) > TOLERANCE){
-			analyseEdgeSet(graph, vectorEdgesId, left, middle, -1);
+			analyseEdgeSet(graph, vectorEdgesId, left, middle, -1, onlyCheckForLeaves);
 		}
 
 		// Otherwise, check if eventually will be close enough. Only do this if both lines are not horizontal
@@ -487,7 +614,7 @@ void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::pri
 	while(vectorEdgesId[right] != -1){
 		double dist = distanceAtHeight(graph->edges[vectorEdgesId[middle]], graph->edges[vectorEdgesId[right]], q.top().height);
 		if(dist < length && abs(dist - length) > TOLERANCE){
-			analyseEdgeSet(graph, vectorEdgesId, middle, right, -1);
+			analyseEdgeSet(graph, vectorEdgesId, middle, right, -1, onlyCheckForLeaves);
 		}
 		else if(isHorizontal){break;}
 		else{
@@ -513,7 +640,7 @@ void event_deactivate(Graph* graph, double length, SweepBST* activeEdges, std::p
 	activeEdges->remove(q.top().line1, q.top().height);
 }
 
-void event_close_enough(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q){
+void event_close_enough(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, bool onlyCheckForLeaves){
 	// printf("Height %.2f edges %d (%d, %d) and %d (%d, %d) close enough\n", q.top().height,
 		// q.top().line1->id, q.top().line1->start->id, q.top().line1->end->id,
 		// q.top().line2->id, q.top().line2->start->id, q.top().line2->end->id);
@@ -524,10 +651,10 @@ void event_close_enough(Graph* graph, double length, SweepBST* activeEdges, std:
 	while(vectorEdgesId[left] != q.top().line1->id){left++;}
 	right = left+1;
 	while(vectorEdgesId[right] != q.top().line2->id){right++;}
-	analyseEdgeSet(graph, vectorEdgesId, left, right, -1);
+	analyseEdgeSet(graph, vectorEdgesId, left, right, -1, onlyCheckForLeaves);
 }
 
-void l_cut_finder(Graph* graph, double length){
+void l_cut_finder(Graph* graph, double length, bool onlyCheckForLeaves){
 	// Function to find cuts of the graph
 	// Start by using the binary search tree and the queue to
 	// make sure all is well.
@@ -548,9 +675,9 @@ void l_cut_finder(Graph* graph, double length){
 	}
 	while(!q.empty()){
 
-		if(q.top().type == 'a'){event_activate(graph, length, &activeEdges, q, &queue_node_id);}
+		if(q.top().type == 'a'){event_activate(graph, length, &activeEdges, q, &queue_node_id, onlyCheckForLeaves);}
 		else if(q.top().type == 'd'){event_deactivate(graph, length, &activeEdges, q);}
-		else if(q.top().type == 'c'){event_close_enough(graph, length, &activeEdges, q);}
+		else if(q.top().type == 'c'){event_close_enough(graph, length, &activeEdges, q, onlyCheckForLeaves);}
 		else{printf("Weird behaviour, event is not a, d or c!\n");}		
 		q.pop();
 	}
@@ -559,7 +686,7 @@ void l_cut_finder(Graph* graph, double length){
 		activeEdges.display();
 	}
 	// Also need to look at single edges (they might be cuts as well)
-	checkSingleEdgesCut(graph);
+	checkSingleEdgesCut(graph, onlyCheckForLeaves);
 }
 
 pair<list<Vertex>, double> find_best_edge(Graph* graph, double length, char searchType, double weight){
@@ -598,27 +725,64 @@ pair<list<Vertex>, double> find_best_edge(Graph* graph, double length, char sear
 	// Here is where the search choice happens
 	// Just making search types a through to r, will refine and give proper names when finalising a few
 
-	if(searchType == 'a'){return blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 0);}
-	else if(searchType == 'b'){return blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 10000);}
-	else if(searchType == 'c'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 0);}
-	else if(searchType == 'd'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 10000);}
-	else if(searchType == 'e'){return leaf_search(graph, length, sortedVertices, graphArr);}
-	else if(searchType == 'f'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 0);}
-	else if(searchType == 'g'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 10000);}
-	else if(searchType == 'h'){return single_leaf_search(graph, length, sortedVertices, graphArr);}
-	else if(searchType == 'i'){return pair_leaf_search(graph, length, sortedVertices, graphArr);}
-	else if(searchType == 'j'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 0);}
-	else if(searchType == 'k'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 10000);}
-	else if(searchType == 'l'){return single_leaf_pair_search(graph, length, sortedVertices, graphArr);}
-	else if(searchType == 'm'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 0);}
-	else if(searchType == 'n'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 10000);}
-	else if(searchType == 'o'){return combined_leaf_search(graph, length, sortedVertices, graphArr, weight);}
-	else if(searchType == 'p'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 0);}
-	else if(searchType == 'q'){return custom_leaf_search(graph, length, sortedVertices, graphArr, weight);}
-	else if(searchType == 'r'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 0);}
-	else if(searchType == 's'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 10000);}
-	else if(searchType == 't'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 10000);}
-		
+	// Modifying this so that can free memory of graphArr
+	pair<list<Vertex>, double> bestSolution;
+	bestSolution.second = DBL_MAX;
+	if(searchType == 'a'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 0);}
+	else if(searchType == 'b'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 10000);}
+	else if(searchType == 'c'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 0);}
+	else if(searchType == 'd'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 10000);}
+	else if(searchType == 'e'){bestSolution = leaf_search(graph, length, sortedVertices, graphArr);}
+	else if(searchType == 'f'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 0);}
+	else if(searchType == 'g'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 10000);}
+	else if(searchType == 'h'){bestSolution = single_leaf_search(graph, length, sortedVertices, graphArr);}
+	else if(searchType == 'i'){bestSolution = pair_leaf_search(graph, length, sortedVertices, graphArr);}
+	else if(searchType == 'j'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 0);}
+	else if(searchType == 'k'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 10000);}
+	else if(searchType == 'l'){bestSolution = single_leaf_pair_search(graph, length, sortedVertices, graphArr);}
+	else if(searchType == 'm'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 0);}
+	else if(searchType == 'n'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 10000);}
+	else if(searchType == 'o'){bestSolution = combined_leaf_search(graph, length, sortedVertices, graphArr, weight);}
+	else if(searchType == 'p'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 0);}
+	else if(searchType == 'q'){bestSolution = custom_leaf_search(graph, length, sortedVertices, graphArr, weight);}
+	else if(searchType == 'r'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 0);}
+	else if(searchType == 's'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 10000);}
+	else if(searchType == 't'){bestSolution = blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 10000);}
+	else{printf("Do not understand search type!\n");}
+
+	// delete graphArr;
+	return bestSolution;
+	
+
+
+
+
+	// if(searchType == 'a'){return blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 0);}
+	// else if(searchType == 'b'){return blockSearch(graph, length, sortedVertices, graphArr, 0, 0, 10000);}
+	// else if(searchType == 'c'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 0);}
+	// else if(searchType == 'd'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 0, 10000);}
+	// else if(searchType == 'e'){return leaf_search(graph, length, sortedVertices, graphArr);}
+	// else if(searchType == 'f'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 0);}
+	// else if(searchType == 'g'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 0, 10000);}
+	// else if(searchType == 'h'){return single_leaf_search(graph, length, sortedVertices, graphArr);}
+	// else if(searchType == 'i'){return pair_leaf_search(graph, length, sortedVertices, graphArr);}
+	// else if(searchType == 'j'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 0);}
+	// else if(searchType == 'k'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 1, 10000);}
+	// else if(searchType == 'l'){return single_leaf_pair_search(graph, length, sortedVertices, graphArr);}
+	// else if(searchType == 'm'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 0);}
+	// else if(searchType == 'n'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 1, 10000);}
+	// else if(searchType == 'o'){return combined_leaf_search(graph, length, sortedVertices, graphArr, weight);}
+	// else if(searchType == 'p'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 0);}
+	// else if(searchType == 'q'){return custom_leaf_search(graph, length, sortedVertices, graphArr, weight);}
+	// else if(searchType == 'r'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 0);}
+	// else if(searchType == 's'){return blockSearch(graph, length, sortedVertices, graphArr, 1, 2, 10000);}
+	// else if(searchType == 't'){return blockSearch(graph, length, sortedVertices, graphArr, 2, 2, 10000);}
+	// printf("Do not understand search type!\n");
+	// pair<list<Vertex>, double> bestSolution;
+	// bestSolution.second = DBL_MAX;
+	// return bestSolution;
+
+
 
 
 
@@ -630,10 +794,7 @@ pair<list<Vertex>, double> find_best_edge(Graph* graph, double length, char sear
 	// else if(searchType == 'c'){return combined_leaf_search(graph, length, sortedVertices, graphArr, weight);}
 	// else if(searchType == 'x'){return custom_leaf_search(graph, length, sortedVertices, graphArr, weight);}
 	// If got here, search type specified is not defined
-	printf("Do not understand search type!\n");
-	pair<list<Vertex>, double> bestSolution;
-	bestSolution.second = DBL_MAX;
-	return bestSolution;
+	
 }
 
 bool doIntersect(vector<int> &v1, vector<int> &v2){
@@ -1024,7 +1185,7 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 		int count = 0;
 		pair<list<Vertex>, double> prevEdge;
 		do{
-			// printf("\n\n================== COUNT IS %d ================== \n\n", count);
+			if(printInfo){printf("\n\n================== COUNT IS %d ================== \n\n", count);}
 			count++;
 			resetGraph(newGraph);
 			makeAdjacencyMatrix(newGraph);
@@ -1078,13 +1239,17 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 					++it2;
 				}
 				repeated = repeated && it == edge.first.end() && it2 == prevEdge.first.end();
-				if(repeated){edge.second = DBL_MAX;}
-				printf("Stuck in an infite loop!\n");
+				if(repeated){
+					edge.second = DBL_MAX;
+					printf("Stuck in an infite loop!\n");
+				}
+				
 			}
-			prevEdge = edge;
+			// prevEdge = edge;
 
 			if(edge.second == DBL_MAX){
-				printf("Graph cannot be made l-resilient with current search type!\n"); break;
+				printf("Graph cannot be made l-resilient with current search type!\n");
+				break;
 			}
 			// Add new edge to graph	
 			addSegment(newGraph, edge.first);
@@ -1093,6 +1258,8 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 			// 	printf("%d ", it->id);
 			// }
 			// printf("\n");
+			// I feel like storing previous edge needs to happen here instead
+			prevEdge = edge;	
 			cost += edge.second;
 		
 		}while(true);
@@ -1162,6 +1329,8 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 	int count = 0;
 	double cost = 0;
 	pair<list<Vertex>, double> prevEdge;
+	pair<list<Vertex>, double> edge;
+
 	do{
 		if(printInfo){printf("\n\n================== COUNT IS %d ================== \n\n", count);}
 		
@@ -1169,17 +1338,67 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		resetGraph(graph);
 		// Make adjacency matrix
 		makeAdjacencyMatrix(graph);
-		// Find all cuts
-		l_cut_finder(graph, length);
-		// Find min cuts
-		findLabelsAndMinCuts(graph);
-		// Find leaves
-		findLeaves(graph);
-		// if(count ==0){break;}
-		// If have no cuts, the graph is l-resilient and can stop!
-		if(graph->cuts.begin() == graph->cuts.end()){break;}
-		// Find best edge based on search type
-		pair<list<Vertex>, double> edge = find_best_edge(graph, length, searchType, weight);
+
+		// Slight variation based on the search,
+		// to incorporate fully polynomial scheme
+		if(searchType == 'v' || searchType == 'w'){
+			// Run l_cut_finder but only to find leaves
+			l_cut_finder(graph, length, true);
+			// Now need to save data in nodeLeaves
+			storeNodeLeaves(graph);
+			// Finally if the graph has no leaves, it is l-resilient and can stop!
+			if(graph->leaves.begin() == graph->leaves.end()){break;}
+			// Find best edge based on search type
+			if(searchType == 'v'){edge = find_best_edge(graph, length, 'o', weight);}
+			else if(searchType == 'w'){edge = find_best_edge(graph, length, 'q', weight);}
+
+			// printf("Have leaves (when only looking for leaves):\n");
+			// for(int i = 0; i < graph->leaves.size(); i++){
+			// 	for(int j = 0; j < graph->leaves[i].size(); j++){
+			// 		printf("%d (%.2f, %.2f)", graph->leaves[i][j], graph->vertices[graph->leaves[i][j]]->x, graph->vertices[graph->leaves[i][j]]->y);
+			// 	}
+			// 	printf(" - with cut ");
+			// 	for(int j = 0; j < graph->leafMinCut[i].size(); j++){
+			// 		printf("%d (%d-%d) ", graph->leafMinCut[i][j], graph->edges[graph->leafMinCut[i][j]]->start->id, graph->edges[graph->leafMinCut[i][j]]->end->id);
+			// 	}
+			// 	printf("\n");
+			// }
+
+			// Reset values
+			// resetGraph(graph);
+			// Make adjacency matrix
+			// makeAdjacencyMatrix(graph);
+		// }
+			
+		}else{
+			// Find all cuts
+			l_cut_finder(graph, length);
+			// Find min cuts
+			findLabelsAndMinCuts(graph);
+			// Find leaves
+			findLeaves(graph);
+			// if(count ==0){break;}
+			// If have no cuts, the graph is l-resilient and can stop!
+			if(graph->cuts.begin() == graph->cuts.end()){break;}
+			// Find best edge based on search type
+			// if(searchType == 'v'){edge = find_best_edge(graph, length, 'o', weight);}
+			// else if(searchType == 'w'){edge = find_best_edge(graph, length, 'q', weight);}
+			// else{edge = find_best_edge(graph, length, searchType, weight);}
+			edge = find_best_edge(graph, length, searchType, weight);
+			// printf("Have leaves (when only looking for everything):\n");
+			// for(int i = 0; i < graph->leaves.size(); i++){
+			// 	for(int j = 0; j < graph->leaves[i].size(); j++){
+			// 		printf("%d (%.2f, %.2f)", graph->leaves[i][j], graph->vertices[graph->leaves[i][j]]->x, graph->vertices[graph->leaves[i][j]]->y);
+			// 	}
+			// 	printf(" - with cut ");
+			// 	for(int j = 0; j < graph->leafMinCut[i].size(); j++){
+			// 		printf("%d (%d-%d) ", graph->leafMinCut[i][j], graph->edges[graph->leafMinCut[i][j]]->start->id, graph->edges[graph->leafMinCut[i][j]]->end->id);
+			// 	}
+			// 	printf("\n");
+			// }
+		}
+		
+		
 		if(count > 0){
 			bool repeated = true;
 			auto it = edge.first.begin();
@@ -1206,12 +1425,9 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 				}
 				printf("\n");
 				return NAN;
-			}
-			
-			
+			}	
 		}
-
-		prevEdge = edge;
+		// prevEdge = edge;
 		// If could not find an edge by this stage, graph cannot be made l-resilient
 		// with current technique
 		if(edge.second == DBL_MAX){
@@ -1223,10 +1439,13 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		if(printInfo){
 			printf("Best candidate edge has cost %.2f and nodes ", edge.second);
 			for(auto it = edge.first.begin(); it != edge.first.end(); ++it){
+				// printf("%d (%.4f, %.4f)", it->id, graph->vertices[it->id]->x, graph->vertices[it->id]->y);
 				printf("%d ", it->id);
 			}
 			printf("\n");
 		}
+		// I feel like storing previous edge needs to happen here instead
+		prevEdge = edge;
 		count++;
 		cost += edge.second;
 		
@@ -1426,7 +1645,7 @@ int main(int argc, char** argv){
 		getline(ss, token, ' ');
 		char search = token[0];
 		int weight = 0;
-		if(search == 'o' || search == 'q' || search == 'u'){
+		if(search == 'o' || search == 'q' || search == 'u' || search == 'v' || search == 'w'){
 			string stringWeight = token.substr(1, (int)token.size() - 1);
 			weight = stoi(stringWeight);
 		}
@@ -1570,7 +1789,9 @@ int main(int argc, char** argv){
 			}else if((int)searchStrategies[i].size() > 1 &&
 						searchStrategies[i][0] != 'o' &&
 						searchStrategies[i][0] != 'q' &&
-						searchStrategies[i][0] != 'u'){
+						searchStrategies[i][0] != 'u' &&
+						searchStrategies[i][0] != 'v' &&
+						searchStrategies[i][0] != 'w'){
 				printf("Something weird is going on with search strategies, got a strategy %s of length > 1, but should be one of o, q, u followed by int weight! Stopping now...\n", searchStrategies[i].c_str());
 				return 0;
 			}
@@ -1599,9 +1820,20 @@ int main(int argc, char** argv){
 						// for(int seed = stoi(seeds[0]); seed <= stoi(seeds[1]); seed++){
 						outputFile.open(setupFile, ios_base::app);
 						if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", setupFile.c_str()); return 0;}
-						outputFile << to_string(size) << " " << seeds[0] << "-" << seeds[1] << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+						// Adding something here to split up a search as it takes forever to complete
+						if(searchStrategies[i][0] == 'a' && size > 50){
+							outputFile << to_string(size) << " " << seeds[0] << "-" << (int)((stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							outputFile << to_string(size) << " " << (int)((stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(2 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							outputFile << to_string(size) << " " << (int)(2*(stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(3 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							outputFile << to_string(size) << " " << (int)(3*(stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(4 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							outputFile << to_string(size) << " " << (int)(4*(stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(5 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							jobs += 5;
+						}else{
+							outputFile << to_string(size) << " " << seeds[0] << "-" << seeds[1] << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
+							jobs++;
+						}
 						outputFile.close();
-						jobs++;
+						
 						// }
 					}
 				}

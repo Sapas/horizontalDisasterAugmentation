@@ -491,6 +491,7 @@ double dijkstraMultipleSourceGoal(vector<int> &startGoalMid, vector<list< pair<i
 		int current;
 		while(!pq.empty()){
 			current = pq.top().first;
+			// printf("%d cost %.4f pred %d - ", current, cost[current], predecessor[current]);
 			// Check if this is one of the goals
 			if(startGoalMid[current] == 2){break;}
 			// Otherwise check neighbours and update
@@ -503,6 +504,7 @@ double dijkstraMultipleSourceGoal(vector<int> &startGoalMid, vector<list< pair<i
 			}
 			pq.pop();
 		}
+		// printf("\n");
 		if(startGoalMid[current] != 2){
 			// Due to floating point error, can't find a path. Assume it does not exist
 			continue;
@@ -669,6 +671,19 @@ pair<list<Vertex>, double> findShortestEdge(Graph* graph, double length, char se
 		// printf("\n");
 		vector<int> path;
 		double pathCost = dijkstraMultipleSourceGoal(startGoalMid, adjacentMatrix, path);
+		
+		// printf("Locations:\n");
+		// for(int i = 0; i < faceVertices.size(); i++){
+		// 	printf("%d (%.4f, %.4f)\n", i, CGAL::to_double(faceVertices[i]->point().x()), CGAL::to_double(faceVertices[i]->point().y()));
+		// }
+		// printf("Visibility:\n");
+		// for(int i = 0; i < adjacentMatrix.size(); i++){
+		// 	printf("%d: ", i);
+		// 	for(auto it = adjacentMatrix[i].begin(); it != adjacentMatrix[i].end(); ++it){
+		// 		printf("%d ", it->first);
+		// 	}
+		// 	printf("\n");
+		// }
 		// NEED TO SAVE IT SOMEHOW
 		if(pathCost < bestSolution.second){
 			// Make path of vertices
@@ -702,7 +717,6 @@ pair<list<Vertex>, double> findShortestEdge(Graph* graph, double length, char se
 		}
 		specCount++;
 	}
-
 
 	return bestSolution;
 }

@@ -1,0 +1,31 @@
+#!/bin/bash
+#SBATCH --job-name=horizontalDisaster
+#SBATCH -p physical
+#SBATCH --constraint=physg5
+#SBATCH --time=48:00:00
+#SBATCH --mem=2G
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --array=1-5
+
+
+# Load the required modules
+module load gcc/8.3.0
+module load cmake/3.18.4 
+module load cgal/4.14.1-python-3.7.4
+module load gmp/6.1.2
+module load mpfr/4.0.2
+# Move into folder and run
+cd ../cpp_code
+
+# Call job. Note first bool specifies print info, second whether graph should be plotted
+
+# This one has 48 jobs
+#./augmentation run smallTest ${SLURM_ARRAY_TASK_ID} 1 0
+# This one has 880 jobs
+#./augmentation run preliminaryRun ${SLURM_ARRAY_TASK_ID} 1 0
+# This one has 960 jobs
+./augmentation run mainRun ${SLURM_ARRAY_TASK_ID} 1 0
+# This one has 864 jobs
+#./augmentation run mainRunLarge ${SLURM_ARRAY_TASK_ID} 1 0

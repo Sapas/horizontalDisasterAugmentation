@@ -46,6 +46,11 @@ void generate_graph_top_bottom(Graph* graph, int n, double X, double Y, int seed
 					std::abs(graph->vertices[j]->y - v->y) < TOLERANCE){
 					found = false;
 				}
+				// Adding another check to make sure the two points are not too close in the y coordinate,
+				// as this creates floating point errors
+				if(std::abs(graph->vertices[j]->y - v->y) < 0.1){
+					found = false;
+				}
 			}
 			if(found){graph->vertices.push_back(v);}
 		}
@@ -270,6 +275,11 @@ void generate_graph(Graph* graph, int n, int e, double X, double Y, int seed, do
 			for(int j = 0; j < graph->vertices.size() && found; j++){
 				if(std::abs(graph->vertices[j]->x - v->x) < TOLERANCE &&
 					std::abs(graph->vertices[j]->y - v->y) < TOLERANCE){
+					found = false;
+				}
+				// Adding another check to make sure the two points are not too close in the y coordinate,
+				// as this creates floating point errors
+				if(std::abs(graph->vertices[j]->y - v->y) < 0.1){
 					found = false;
 				}
 			}

@@ -13,6 +13,7 @@
 #include <queue>
 #include <math.h> 
 #include <limits>
+#include <tuple>
 #include "input_output.h"
 #include "line_geometry.h"
 #include "sweep_binary_search_tree.h"
@@ -117,6 +118,8 @@ bool isSubset(vector<int> &smallVector, vector<int> &bigVector);
 // if no existing leaf is a subset, or if this new leaf is a subset of existing leaves
 void checkPotentialLeaf(Graph* graph, vector<int> &potentialLeaf, vector<int> &minCut);
 
+void storeNodeLeaves(Graph* graph);
+
 // Wrapper function used to find the leaves, simply cycles through the minimal cuts,
 // finds the shores of the minimal cut and checks whether either one (or both) are
 // leaves
@@ -134,14 +137,18 @@ void depthFirstSearch(Graph* graph, vector< pair <int,int> > &forbidden, vector<
 // an edge cut; this was only the case if the condensation of the graph was bipartite.
 bool checkBipartite(vector<vector<int> > &adjacencyMatrix, vector<int> &group, int vertexId, int groupId);
 
+void checkSingleEdgesForLeaves(Graph* graph);
+
 // A function which checks every edge in graph to check whether it is an l-cut or not.
 // It simply performs a DFS (ignoring an edge) and checks if the graph is connected!
-void checkSingleEdgesCut(Graph* graph);
+void checkSingleEdgesCut(Graph* graph, bool onlyCheckForLeaves = false);
 
 // A function which cycles through all of the cuts of the graph (which have already been found)
 // and finds the blocks obtained when removing the cut. Also takes the chance to find which cuts are
 // minimal l-cuts; these are the ones that produce exactly two blocks.
 void findLabelsAndMinCuts(Graph* graph);
+
+void analyseEdgeSetForLeaves(Graph* graph, vector<int> &vectorEdgesId, int left, int right);
 
 // Function called to analyse a set of edges which can be destroyed at the same time.
 // Function finds all the subsets of the set of edges which include left, right and middle
@@ -149,7 +156,7 @@ void findLabelsAndMinCuts(Graph* graph);
 // the edges in vectorEdgesId. It then looks at every partition of the blocks into two sets,
 // knowing every set of edges going between the two is a subset of the set of edges and can be 
 // destroyed by a disaster, thus being an l-cut.
-void analyseEdgeSet(Graph* graph, vector< pair <int,int> > &vectorEdgesId, int left, int right, int middle);
+void analyseEdgeSet(Graph* graph, vector< pair <int,int> > &vectorEdgesId, int left, int right, int middle, bool onlyCheckForLeaves = false);
 
 
 // Function which deals with the activate event in the sweep algorithm which finds the l-cuts of the graph
@@ -160,7 +167,7 @@ void analyseEdgeSet(Graph* graph, vector< pair <int,int> > &vectorEdgesId, int l
 // to e and calls analyseEdgeSet on the set of edges between and including e and e', and calls analyseEdgeLength.
 // If e and e' are further than "length" appart, it also checks whether at some stage they become close enough, and if 
 // so, the event "close enough" is added to the queue.
-void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, int* queue_node_id);
+void event_activate(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, int* queue_node_id, bool onlyCheckForLeaves = false);
 
 // Function which deals with the deactivate event in the sweep algorithm which finds the l-cuts of the graph
 // This function simply removes the edge from the binary search tree of active edges
@@ -169,14 +176,14 @@ void event_deactivate(Graph* graph, double length, SweepBST* activeEdges, std::p
 // Function which deals with the close enough event in the sweep algorithm which finds the l-cuts of the graph
 // It only finds all the edges between and including the two edges that have just become close enough,
 // and calls the analyseEdgeSet function on this set of edges
-void event_close_enough(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q);
+void event_close_enough(Graph* graph, double length, SweepBST* activeEdges, std::priority_queue <Event> &q, bool onlyCheckForLeaves = false);
 
 // Parent function which finds all the l-cuts of the inputed graph, where length is the length of the disaster
 // It works as a sweep algorithm from top to bottom, with three subfunctions doing most of the work
 // This function creates activation and deactivation events for all of the edges in the graph and puts them 
 // in an even priority queue, organised by height of event. For each event, it calls the relevant function and
 // and pops the event. At the end it checks each individual edge to see if it produces an l-cut
-void l_cut_finder(Graph* graph, double length);
+void l_cut_finder(Graph* graph, double length, bool onlyCheckForLeaves = false);
 
 // Parent function used when adding a new edge to graph. It should be called after l_cut_finder, as it relies
 // on the structure graph knowing what the l-cuts are. It finds the best edge based on the search type specified;
