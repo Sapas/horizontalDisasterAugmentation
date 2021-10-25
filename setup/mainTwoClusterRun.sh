@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --array=1-960
+#SBATCH --array=801-1600
 
 
 # Load the required modules
@@ -21,11 +21,6 @@ cd ../cpp_code
 
 # Call job. Note first bool specifies print info, second whether graph should be plotted
 
-# This one has 48 jobs
-#./augmentation run smallTest ${SLURM_ARRAY_TASK_ID} 1 0
-# This one has 880 jobs
-./augmentation run preliminaryRun ${SLURM_ARRAY_TASK_ID} 1 0
-# This one has 960 jobs
+# This one has 1600 jobs
 ./augmentation run mainRun ${SLURM_ARRAY_TASK_ID} 1 0
-# This one has 864 jobs
-#./augmentation run mainRunLarge ${SLURM_ARRAY_TASK_ID} 1 0
+

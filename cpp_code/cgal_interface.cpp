@@ -718,6 +718,9 @@ pair<list<Vertex>, double> findShortestEdge(Graph* graph, double length, char se
 		specCount++;
 	}
 
+	// Need to do something about all the stored data. Start by deleting all "newVertices"
+	for(int i = 0; i < newVertices.size(); i++){delete newVertices[i];}
+
 	return bestSolution;
 }
 

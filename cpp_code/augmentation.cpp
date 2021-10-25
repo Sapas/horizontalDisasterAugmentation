@@ -153,7 +153,10 @@ void findLeaves(Graph* graph){
 	// which looks at whether the potential leaf is a leaf (at least currently)
 	auto cutIt = graph->minCuts.begin();
 	auto labelIt = graph->minCutLabels.begin();
+	int count = 0;
 	while(cutIt != graph->minCuts.end() && labelIt != graph->minCutLabels.end()){
+		count++;
+		// printf("Working min cut %d/%d (%.5f%%)\n", count, (int)graph->minCuts.size(), double(100.0 * count / graph->minCuts.size()));
 		vector<int> potentialLeaf1;
 		vector<int> potentialLeaf2;
 		potentialLeaf1.reserve((int)graph->vertices.size());
@@ -279,7 +282,12 @@ void checkSingleEdgesCut(Graph* graph, bool onlyCheckForLeaves){
 		}
 		// If the graph is connected; if it is not an l-cut!
 		if(group == 2){continue;}
-		graph->cuts.push_back(cut);
+		// graph->cuts.push_back(cut);
+		graph->minCuts.push_back(cut);
+		graph->minCutLabels.push_back(visited);
+		// Need to update the blocks as you go, but doing it for minimal l-cuts is sufficient
+		vectorIntEncoder(graph->blockIds, visited);
+
 	}
 }
 
@@ -288,12 +296,15 @@ void findLabelsAndMinCuts(Graph* graph){
 	// Initialise the block each node is in
 	vector<int> ids(graph->vertices.size(), 1);
 	graph->blockIds = ids;
+	int count = 0; 
 	while(cutIt != graph->cuts.end()){
+		count++;
+		printf("Working cut %d/%d (%.5f%%)\n", count, (int)graph->cuts.size(), (double)(100.0 * count / graph->cuts.size()));
+
 		vector<pair<int,int> > forbidden;
 		forbidden.reserve(cutIt->size());
 		for(int i = 0; i < cutIt->size(); i++){
-			forbidden.push_back(make_pair(graph->edges[(*cutIt)[i]]->start->id, graph->edges[(*cutIt)[i]]->end->id));
-			
+			forbidden.push_back(make_pair(graph->edges[(*cutIt)[i]]->start->id, graph->edges[(*cutIt)[i]]->end->id));	
 		}
 		// DFS to find the blocks
 		vector<int> visited(graph->vertices.size(), 0);
@@ -305,14 +316,18 @@ void findLabelsAndMinCuts(Graph* graph){
 			group++;
 		}
 		// Sweet, have the groups! Can save
+
+		// I actually could comment this out as for now this is never used and it might take a lot of memory to store
 		graph->cutLabels.push_back(visited); 
+
 		// If only have 3 groups (so 2 really) this is a minimal cut
 		if(group == 3){
 			graph->minCuts.push_back((*cutIt));
-			graph->minCutLabels.push_back(visited); 
+			graph->minCutLabels.push_back(visited);
+			// Need to update the blocks as you go, but doing it for minimal l-cuts is sufficient
+			vectorIntEncoder(graph->blockIds, visited);
 		}
-		// Need to update the blocks as you go
-		vectorIntEncoder(graph->blockIds, visited);
+		
 		++cutIt;
 	}
 }
@@ -545,8 +560,27 @@ void analyseEdgeSet(Graph* graph, vector<int> &vectorEdgesId, int left, int righ
 					newCut.push_back(edgeSet[k]);
 				}
 			}
-			// Got new cut
-			graph->cuts.push_back(newCut);
+			// Got new cut, should store it
+			// graph->cuts.push_back(newCut);
+			// Instead, check if this is a minimal l-cut and store it if it is
+			vector<pair<int,int> > newForbidden((int)newCut.size());
+			for(int i = 0; i < (int)newCut.size(); i++){
+				newForbidden[i] = make_pair(graph->edges[newCut[i]]->start->id, graph->edges[newCut[i]]->end->id);
+			}
+			vector<int> newVisited(graph->vertices.size(), 0);
+			int newGroup = 1;
+			for(int i = 0; i < graph->vertices.size(); i++){
+				if(newVisited[i] != 0){continue;}
+				depthFirstSearch(graph, newForbidden, newVisited, i, newGroup);
+				newGroup++;
+			}
+			if(newGroup == 3){
+				graph->minCuts.push_back(newCut);
+				graph->minCutLabels.push_back(newVisited);
+				// Need to update the blocks as you go, but doing it for minimal l-cuts is sufficient
+				vectorIntEncoder(graph->blockIds, newVisited);
+			}
+
 
 		}
 	}
@@ -984,11 +1018,11 @@ pair<list<Vertex>, double> leaf_search(Graph* graph, double length, vector<Verte
 	bestSolution.second = DBL_MAX;
 	// Simply cycle through each leaf and find the best edge out of it
 	for(int leaf = 0; leaf < graph->leaves.size(); leaf++){
-		// printf("Leaf ");
-		// for(int i = 0; i < graph->leaves[leaf].size(); i++){
-		// 	printf("%d ", graph->leaves[leaf][i]);
-		// }
-		// printf("\n");
+		printf("Singe leaf %d: ", leaf);
+		for(int i = 0; i < graph->leaves[leaf].size(); i++){
+			printf("%d ", graph->leaves[leaf][i]);
+		}
+		printf("\n");
 		pair<list<Vertex>, double> bestLeafSolution = findShortestEdge(graph, length, 'l', leaf, -1, sortedVertices, graphArr);
 		if(bestLeafSolution.second < bestSolution.second){
 			bestSolution = bestLeafSolution;
@@ -1044,6 +1078,7 @@ pair<list<Vertex>, double> pair_leaf_search(Graph* graph, double length, vector<
 	// Look at every pair of leaves
 	for(int leaf1 = 0; leaf1 < graph->leaves.size(); leaf1++){
 		for(int leaf2 = leaf1 + 1; leaf2 < graph->leaves.size(); leaf2++){
+			printf("Pair leaves %d, %d\n", leaf1, leaf2);
 			// printf("%d %d\n", graph->leaves[leaf1][0], graph->leaves[leaf2][0]);
 			// if(graph->leaves[leaf1][0] != 0 || graph->leaves[leaf2][0] != 3){continue;}
 			pair<list<Vertex>, double> bestLeafSolution = findShortestEdge(graph, length, 'p', leaf1, leaf2, sortedVertices, graphArr);
@@ -1156,16 +1191,19 @@ pair<list<Vertex>, double> random_leaf_pair_search(Graph* graph, double length, 
 }
 
 
-double randomAugment(Graph* graph, double length, double weight, bool printInfo){
+tuple<double, double, double> randomAugment(Graph* graph, double length, double weight, bool printInfo){
 	// Want to do the same as normal augment, but want to repeat it a few times
 	makeAdjacencyMatrix(graph);
 	if(!isConnected(graph)){
 		printf("Graph is not connected! Ending now.\n");
-		return NAN;
+		return make_tuple(NAN, 0, 0);
 	}
 	double bestCost = DBL_MAX;
 	Graph* bestGraphAddress;
 	int numChecks = 5;
+	clock_t t;
+	double timeStruct = 0;
+	double timeAugment = 0;
 
 	for(int i = 1; i <= numChecks; i++){
 		double cost = 0;
@@ -1187,13 +1225,17 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 		do{
 			if(printInfo){printf("\n\n================== COUNT IS %d ================== \n\n", count);}
 			count++;
+			t = clock();
 			resetGraph(newGraph);
 			makeAdjacencyMatrix(newGraph);
 			l_cut_finder(newGraph, length);
-			findLabelsAndMinCuts(newGraph);
+			// Skip the next one 
+			// findLabelsAndMinCuts(newGraph);
 			findLeaves(newGraph);
-			if(newGraph->cuts.begin() == newGraph->cuts.end()){break;}
+			timeStruct += ((float)(clock() - t))/CLOCKS_PER_SEC;
+			if(newGraph->minCuts.begin() == newGraph->minCuts.end()){break;}
 
+			t = clock();
 			// Adding stuff from find_best_edge function
 			// Will need the vector of vertices sorted for reference
 			vector<Vertex*> sortedVertices = newGraph->vertices;
@@ -1253,6 +1295,7 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 			}
 			// Add new edge to graph	
 			addSegment(newGraph, edge.first);
+			timeAugment += ((float)(clock() - t))/CLOCKS_PER_SEC;
 			// printf("Best candidate edge has cost %.2f and nodes ", edge.second);
 			// for(auto it = edge.first.begin(); it != edge.first.end(); ++it){
 			// 	printf("%d ", it->id);
@@ -1313,23 +1356,27 @@ double randomAugment(Graph* graph, double length, double weight, bool printInfo)
 	// printf("Four\n");
 	findLeaves(graph);
 	
-	return bestCost;
+	// return bestCost;
+	return make_tuple(bestCost, timeStruct, timeAugment);
 }
 
 
 
 
-double augment(Graph* graph, double length, char searchType, double weight, bool printInfo){
+tuple<double, double, double> augment(Graph* graph, double length, char searchType, double weight, bool printInfo){
 	if(searchType == 'u'){return randomAugment(graph, length, weight, printInfo);}
 	makeAdjacencyMatrix(graph);
 	if(!isConnected(graph)){
 		printf("Graph is not connected! Ending now.\n");
-		return NAN;
+		return make_tuple(NAN, 0, 0);
 	}
 	int count = 0;
 	double cost = 0;
 	pair<list<Vertex>, double> prevEdge;
 	pair<list<Vertex>, double> edge;
+	clock_t t;
+	double timeStruct = 0;
+	double timeAugment = 0;
 
 	do{
 		if(printInfo){printf("\n\n================== COUNT IS %d ================== \n\n", count);}
@@ -1342,16 +1389,19 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		// Slight variation based on the search,
 		// to incorporate fully polynomial scheme
 		if(searchType == 'v' || searchType == 'w'){
+			t = clock();
 			// Run l_cut_finder but only to find leaves
 			l_cut_finder(graph, length, true);
 			// Now need to save data in nodeLeaves
 			storeNodeLeaves(graph);
+			timeStruct += ((float)(clock() - t))/CLOCKS_PER_SEC;
+			t = clock();
 			// Finally if the graph has no leaves, it is l-resilient and can stop!
 			if(graph->leaves.begin() == graph->leaves.end()){break;}
 			// Find best edge based on search type
 			if(searchType == 'v'){edge = find_best_edge(graph, length, 'o', weight);}
 			else if(searchType == 'w'){edge = find_best_edge(graph, length, 'q', weight);}
-
+			timeAugment += ((float)(clock() - t))/CLOCKS_PER_SEC;
 			// printf("Have leaves (when only looking for leaves):\n");
 			// for(int i = 0; i < graph->leaves.size(); i++){
 			// 	for(int j = 0; j < graph->leaves[i].size(); j++){
@@ -1371,20 +1421,27 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		// }
 			
 		}else{
+			t = clock();
 			// Find all cuts
+			// printf("Cuts\n");
 			l_cut_finder(graph, length);
 			// Find min cuts
+			// printf("Labels\n");
 			findLabelsAndMinCuts(graph);
 			// Find leaves
+			// printf("Leaves\n");
 			findLeaves(graph);
+			timeStruct += ((float)(clock() - t))/CLOCKS_PER_SEC;
+			t = clock();
 			// if(count ==0){break;}
 			// If have no cuts, the graph is l-resilient and can stop!
-			if(graph->cuts.begin() == graph->cuts.end()){break;}
+			if(graph->minCuts.begin() == graph->minCuts.end()){break;}
 			// Find best edge based on search type
 			// if(searchType == 'v'){edge = find_best_edge(graph, length, 'o', weight);}
 			// else if(searchType == 'w'){edge = find_best_edge(graph, length, 'q', weight);}
 			// else{edge = find_best_edge(graph, length, searchType, weight);}
 			edge = find_best_edge(graph, length, searchType, weight);
+			timeAugment += ((float)(clock() - t))/CLOCKS_PER_SEC;
 			// printf("Have leaves (when only looking for everything):\n");
 			// for(int i = 0; i < graph->leaves.size(); i++){
 			// 	for(int j = 0; j < graph->leaves[i].size(); j++){
@@ -1424,7 +1481,7 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 					++it;
 				}
 				printf("\n");
-				return NAN;
+				return make_tuple(NAN, 0, 0);
 			}	
 		}
 		// prevEdge = edge;
@@ -1432,7 +1489,7 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		// with current technique
 		if(edge.second == DBL_MAX){
 			printf("Graph cannot be made l-resilient with current search type!\n");
-			return DBL_MAX;
+			return make_tuple(DBL_MAX, 0, 0);
 		}
 		// Add new edge to graph	
 		addSegment(graph, edge.first);
@@ -1451,7 +1508,7 @@ double augment(Graph* graph, double length, char searchType, double weight, bool
 		
 	}while(true);
 	// Here want to do one final search for l-cuts to make sure none are left!
-	return cost;
+	return make_tuple(cost, timeStruct, timeAugment);
 }
 
 void connectGraph(Graph* graph){
@@ -1587,7 +1644,8 @@ int main(int argc, char** argv){
 				else{graphFilename = "../data/graphs/graph_n" + to_string(size) + "_s" + to_string(seed) + "_TopBottom_" + to_string(xDim) + "x" + to_string(yDim) + ".txt";}
 				if(read_graph(graph, graphFilename) == 1){
 					printf("Creating graph filename %s\n", graphFilename.c_str());
-					generate_graph(graph, size, 0, xDim, yDim, seed, 0);
+					if(inputType == 'M'){generate_graph(graph, size, 0, xDim, yDim, seed, 0);}
+					else{generate_graph_top_bottom(graph, size, xDim, yDim, seed);}
 					connectGraph(graph);
 					write_graph(graph, graphFilename);
 				}
@@ -1644,10 +1702,10 @@ int main(int argc, char** argv){
 		double disaster = stof(token);
 		getline(ss, token, ' ');
 		char search = token[0];
-		int weight = 0;
+		double weight = 0;
 		if(search == 'o' || search == 'q' || search == 'u' || search == 'v' || search == 'w'){
 			string stringWeight = token.substr(1, (int)token.size() - 1);
-			weight = stoi(stringWeight);
+			weight = stof(stringWeight);
 		}
 		getline(ss, token, ' ');
 		int xDim = stoi(token);
@@ -1662,12 +1720,12 @@ int main(int argc, char** argv){
 		string outputFilename = "../data/runResults/" + runName + "_arrayJob" + to_string(arrayNum) + ".txt";
 		ofstream outputFile(outputFilename);
 		if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", outputFilename.c_str()); return 0;}
-		outputFile << "size seed input_type disaster search xDim yDim augment_time cost\n";
+		outputFile << "size seed input_type disaster search xDim yDim augment_time structure_time edge_time cost\n";
 		outputFile.close();
 
 		// Cycle through the seeds
 		for(int seed = seedStart; seed <= seedEnd; seed++){
-			printf("Got specified size %d, seed %d, inputType %c, disasterLength %.2f, search %c, weight %d, xDim %d, yDim %d\n", size, seed, inputType, disaster, search, weight, xDim, yDim);
+			printf("Got specified size %d, seed %d, inputType %c, disasterLength %.2f, search %c, weight %.1f, xDim %d, yDim %d\n", size, seed, inputType, disaster, search, weight, xDim, yDim);
 			graph = new Graph();
 			string graphFilename;
 			// Get graph
@@ -1686,15 +1744,21 @@ int main(int argc, char** argv){
 		
 			// Augment
 			clock_t t = clock();
-			double cost = augment(graph, disaster, search, weight, printInfo);
+			tuple<double, double, double> result = augment(graph, disaster, search, weight, printInfo);
 			t = clock() - t;
 			// Output to file
 			outputFile.open(outputFilename, ios_base::app);
 			outputFile << to_string(size) << " " << to_string(seed);
 			if(inputType == 'M'){outputFile << " MST ";}
 			else{outputFile << " TopBottom ";}
-			outputFile << to_string(disaster) << " " << search << "(" << to_string(weight) << ") " << to_string(xDim) << " " << to_string(yDim) << " ";
-			outputFile << setprecision(5) << ((float)t)/CLOCKS_PER_SEC << " " << cost << "\n";
+			string weightName;
+			if(abs(round(weight) - weight) < TOLERANCE){
+				weightName = to_string(weight).substr(0,1);
+			}else{
+				weightName = to_string(weight).substr(0,3);
+			}
+			outputFile << to_string(disaster) << " " << search << "(" << weightName << ") " << to_string(xDim) << " " << to_string(yDim) << " ";
+			outputFile << setprecision(5) << to_string(((float)t)/CLOCKS_PER_SEC) << " " << to_string(get<1>(result)) << " " << to_string(get<2>(result)) << " " << get<0>(result) << "\n";
 			outputFile.close();
 
 			string plotFilename;
@@ -1820,8 +1884,10 @@ int main(int argc, char** argv){
 						// for(int seed = stoi(seeds[0]); seed <= stoi(seeds[1]); seed++){
 						outputFile.open(setupFile, ios_base::app);
 						if(!outputFile.is_open()){printf("Error: Could not open output file %s to output experiment results! Stopping now...\n", setupFile.c_str()); return 0;}
-						// Adding something here to split up a search as it takes forever to complete
-						if(searchStrategies[i][0] == 'a' && size > 50){
+						// Adding something here to split up two searches as they take forever to complete
+						if((searchStrategies[i][0] == 'a' ||
+							searchStrategies[i][0] == 'u') &&
+							size > 50){
 							outputFile << to_string(size) << " " << seeds[0] << "-" << (int)((stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
 							outputFile << to_string(size) << " " << (int)((stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(2 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";
 							outputFile << to_string(size) << " " << (int)(2*(stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0]) + 1) << "-" << (int)(3 * (stoi(seeds[1]) - stoi(seeds[0]))/5 + stoi(seeds[0])) << " " << inputTypes[j] << " " << disasterLengths[k] << " " << searchStrategies[i] << " " << to_string(xDim) << " " << to_string(yDim) << "\n";

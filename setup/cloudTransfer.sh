@@ -29,10 +29,16 @@ scp mainRun-runScript.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects
 scp mainRunLarge-runScript.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runScripts/
 scp preliminaryRun-runScript.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runScripts/
 scp smallTest-runScript.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runScripts/
+scp polynomialComparisonRun-runScript.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runScripts/
+# This should do all at once
+scp *.txt nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runScripts/
+
 
 # Might want to transfer the cluster run information, to do so go to horizontalDisasterAugmentation/setup/ and call
 scp clusterRun.sh nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/setup/
 scp longClusterRun.sh nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/setup/
+# If want to do all at once 
+scp *.sh nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/setup/
 
 # In order to transfer the data, go to horizontalDisasterAugmentation/data/ and call
 scp -r nandres@spartan.hpc.unimelb.edu.au:/data/gpfs/projects/punim1489/horizontalDisasterAugmentation/data/runResults/ .

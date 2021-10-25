@@ -267,7 +267,7 @@ pair<list<Vertex>, double> single_leaf_pair_search(Graph* graph, double length, 
 
 pair<list<Vertex>, double> random_leaf_pair_search(Graph* graph, double length, vector<Vertex*> &sortedVertices, Poly_Arr &graphArr, int seed);
 
-double randomAugment(Graph* graph, double length, double weight);
+tuple<double, double, double> randomAugment(Graph* graph, double length, double weight);
 
 // Parent function which adds edges to graph until it is l-resilient, where l = length. The input searchType specifies
 // the search strategy when adding new edges. The function returns the cost of the solution; if the input graph 
@@ -275,7 +275,7 @@ double randomAugment(Graph* graph, double length, double weight);
 // relevant to finding the next best edge in turn: It resets all the helper data, finds the l-cuts of the current graph,
 // finds the minimal cuts and leaves, finds the best edge to add and finally it adds it to the graph. It only stops 
 // when no edge can be found; if l-cuts remain it returns a cost of NAN.
-double augment(Graph* graph, double length, char searchType, double weight);
+tuple<double, double, double> augment(Graph* graph, double length, char searchType, double weight);
 
 
 // Little side function which adds edges to the graph until it is connected.

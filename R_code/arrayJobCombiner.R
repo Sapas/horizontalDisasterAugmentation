@@ -1,5 +1,6 @@
 combineArrayResults <- function(runName, arrayStart, arrayEnd){
   combinedData <- read.table(paste0("../data/runResults/", runName, "_arrayJob", arrayStart, ".txt"), header = TRUE, sep = " ", fill = TRUE)
+  incomplete <- ""
   for(i in (arrayStart + 1):arrayEnd){
     filename <- paste0("../data/runResults/", runName, "_arrayJob", i, ".txt")
     if(!file.exists(filename)){
@@ -7,15 +8,19 @@ combineArrayResults <- function(runName, arrayStart, arrayEnd){
       next
     }
     newData <- read.table(filename, header = TRUE, sep = " ", fill = TRUE)
-    # if(nrow(newData) < 25){
-    #   print(paste0("File ", filename, " contains less than 25 rows values, only contains ", nrow(newData)))
+    # if(((newData[1, "search"] != "a(0)" | newData[1, "size"] <= 50) & nrow(newData) < 25) | nrow(newData) < 5){
+    # #if(((substr(newData[1, "search"], 1, 1) != "u" | newData[1, "size"] <= 50) & nrow(newData) < 100) | nrow(newData) < 20){
+    #  print(paste0("File ", filename, " contains unexpected number of rows, only contains ", nrow(newData)))
+    #  incomplete <- paste0(incomplete, ",", i)
     # }
-    # if(nrow(newData[is.na(newData$cost), ]) > 0){
-    #   print(paste0("File ", filename, " contains na values"))
-    #   print(newData[is.na(newData$cost), ])
-    # }
+    #if(nrow(newData[is.na(newData$cost), ]) > 0){
+    #  print(paste0("File ", filename, " contains na values"))
+    #  print(newData[is.na(newData$cost), ])
+    #}
     combinedData <- rbind(combinedData, newData)
   }
+  # print("Incomplete files: ")
+  # print(incomplete)
   return(combinedData)
 }
 
@@ -27,8 +32,10 @@ averagePerformance <- function(data){
   search <- unique(data$search)
   xDim <- unique(data$xDim)
   yDim <- unique(data$yDim)
+  extraTimeVals <- ("structure_time" %in% colnames(data))
   
-  averagedData <- data.frame(matrix(ncol = 10, nrow = 0))
+  if(extraTimeVals){averagedData <- data.frame(matrix(ncol = 12, nrow = 0))}
+  else{averagedData <- data.frame(matrix(ncol = 10, nrow = 0))}
   entries <- 0
   for(size in unique(data$size)){
     for(input_type in unique(data$input_type)){
@@ -48,7 +55,53 @@ averagePerformance <- function(data){
               
               # All good, can add a rows
               entries <- entries + 1
-              averagedData[entries, ] <- c(size, input_type, disaster, search, xDim, yDim, 
+              if(extraTimeVals){
+                averagedData[entries, ] <- c(size, input_type, disaster, search, xDim, yDim, 
+                                             mean(data[data$size == size &
+                                                         data$input_type == input_type & 
+                                                         data$disaster == disaster & 
+                                                         data$search == search & 
+                                                         data$xDim == xDim & 
+                                                         data$yDim == yDim &
+                                                         !is.na(data$cost), c("cost")]),
+                                             sqrt(var(data[data$size == size &
+                                                             data$input_type == input_type & 
+                                                             data$disaster == disaster & 
+                                                             data$search == search & 
+                                                             data$xDim == xDim & 
+                                                             data$yDim == yDim &
+                                                             !is.na(data$cost), c("cost")])),
+                                             mean(data[data$size == size &
+                                                         data$input_type == input_type & 
+                                                         data$disaster == disaster & 
+                                                         data$search == search & 
+                                                         data$xDim == xDim & 
+                                                         data$yDim == yDim &
+                                                         !is.na(data$cost), c("augment_time")]),
+                                             sqrt(var(data[data$size == size &
+                                                             data$input_type == input_type & 
+                                                             data$disaster == disaster & 
+                                                             data$search == search & 
+                                                             data$xDim == xDim & 
+                                                             data$yDim == yDim &
+                                                             !is.na(data$cost), c("augment_time")])),
+                                             mean(data[data$size == size &
+                                                         data$input_type == input_type & 
+                                                         data$disaster == disaster & 
+                                                         data$search == search & 
+                                                         data$xDim == xDim & 
+                                                         data$yDim == yDim &
+                                                         !is.na(data$cost), c("structure_time")]),
+                                             mean(data[data$size == size &
+                                                         data$input_type == input_type & 
+                                                         data$disaster == disaster & 
+                                                         data$search == search & 
+                                                         data$xDim == xDim & 
+                                                         data$yDim == yDim &
+                                                         !is.na(data$cost), c("edge_time")]))
+              
+              }else{
+                averagedData[entries, ] <- c(size, input_type, disaster, search, xDim, yDim, 
                                            mean(data[data$size == size &
                                                        data$input_type == input_type & 
                                                        data$disaster == disaster & 
@@ -77,6 +130,7 @@ averagePerformance <- function(data){
                                                            data$xDim == xDim & 
                                                            data$yDim == yDim &
                                                            !is.na(data$cost), c("augment_time")])))
+              }
             }
           }
         }
@@ -84,8 +138,8 @@ averagePerformance <- function(data){
     }
   }
   
-  colnames(averagedData) <- c("size", "input_type", "disaster", "search", "xDim", "yDim", "costMean", "costSD", "timeMean", "timeSD")
-  
+  if(extraTimeVals){colnames(averagedData) <- c("size", "input_type", "disaster", "search", "xDim", "yDim", "costMean", "costSD", "timeMean", "timeSD", "timeStructMean", "timeEdgeMean")}
+  else{colnames(averagedData) <- c("size", "input_type", "disaster", "search", "xDim", "yDim", "costMean", "costSD", "timeMean", "timeSD")}
   return(averagedData)
 }
 
@@ -102,6 +156,9 @@ getAveragePerformance <- function(runName, arrayStart, arrayEnd){
     print(data[is.infinite(data$cost), ])
     print("These are the searches that did not work sometimes: ")
     print(unique(data[is.infinite(data$cost), "search"]))
+    for(search in unique(data[is.infinite(data$cost), "search"])){
+      print(paste0("Search ", search, " infeasible ", nrow(data[is.infinite(data$cost) & data$search == search, ])))
+    }
   }
   
   averagePerformance(data)

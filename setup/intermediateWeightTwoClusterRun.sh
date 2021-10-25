@@ -7,7 +7,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --array=1-960
+#SBATCH --array=801-1680
 
 
 # Load the required modules
@@ -20,5 +20,7 @@ module load mpfr/4.0.2
 cd ../cpp_code
 
 # Call job. Note first bool specifies print info, second whether graph should be plotted
-# This one has 960 jobs
-./augmentation run mainRun ${SLURM_ARRAY_TASK_ID} 1 0
+
+# This one has 1680 jobs
+./augmentation run intermediateWeightsRun ${SLURM_ARRAY_TASK_ID} 1 0
+

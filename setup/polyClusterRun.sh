@@ -20,5 +20,7 @@ module load mpfr/4.0.2
 cd ../cpp_code
 
 # Call job. Note first bool specifies print info, second whether graph should be plotted
+
 # This one has 640 jobs
 ./augmentation run polynomialRun ${SLURM_ARRAY_TASK_ID} 1 0
+

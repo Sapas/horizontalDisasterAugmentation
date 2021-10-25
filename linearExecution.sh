@@ -5,8 +5,8 @@
 
 # ATTENTION: Only change the values under this statement
 
-runName="smallTest"
-lines=48
+# runName="smallTest"
+#lines=48
 
 # runName="preliminaryRun"
 # lines=880
@@ -17,7 +17,10 @@ lines=48
 # runName="mainRunLarge"
 # lines=864
 
-print_info=0
+runName="largeInstancesTest"
+lines=6
+
+print_info=1
 create_graphs=0
 
 # NO CHANGES PAST THIS POINT
